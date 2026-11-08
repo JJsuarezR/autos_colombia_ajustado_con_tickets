@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Registro de entrada{% endblock %}
+{% block content %}<section class="card"><h2>Registro de entrada</h2>
+<p>Digite la placa y los datos del vehículo.</p>
+<form class="form" method="post">
+<label>Placa<input name="placa" maxlength="6" placeholder="ABC123 / ABC12A" required style="text-transform:uppercase"></label>
+<label>Marca<input name="marca" maxlength="20" placeholder="Ej. Chevrolet"></label>
+<label>Color<input name="color" maxlength="20" placeholder="Ej. Gris"></label>
+<label>Tipo<select name="tipo"><option value="">Seleccione</option><option value="CARRO">Carro</option><option value="MOTO">Moto</option></select></label>
+<button>Registrar entrada y generar ticket</button></form>
+<p class="muted">El ticket queda guardado con el movimiento de entrada y puede imprimirse inmediatamente. Para vehículos ya registrados basta con la placa.</p>
+</section>{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Historial{% endblock %}
+{% block content %}<section class="card"><h2>Historial de movimientos</h2>
+<form method="get" class="filters">
+<label>Placa<input name="placa" value="{{ placa }}" placeholder="Todas o placa"></label>
+<label>Fecha inicial<input type="date" name="desde" value="{{ desde }}"></label>
+<label>Fecha final<input type="date" name="hasta" value="{{ hasta }}"></label>
+<button>Filtrar</button><a class="btn" style="background:#64748b" href="{{ url_for('historial') }}">Limpiar</a>
+</form></section>
+<section class="card"><h3>Resultados: {{ registros|length }}</h3>
+{% if registros %}<div class="table-wrap"><table><tr><th>Placa</th><th>Tipo</th><th>Marca</th><th>Color</th><th>Celda</th><th>Ticket</th><th>Entrada</th><th>Salida</th><th>Operador entrada</th><th>Operador salida</th></tr>
+{% for h in registros %}<tr><td>{{ h.placa }}</td><td>{{ h.tipo }}</td><td>{{ h.marca or '—' }}</td><td>{{ h.color or '—' }}</td><td>{{ h.celda }}</td><td>{% if h.ticket_codigo %}<a href="{{ url_for('ticket', estancia_id=h.id) }}">{{ h.ticket_codigo }}</a>{% else %}—{% endif %}</td><td>{{ h.fecha_entrada }}</td><td>{{ h.fecha_salida or 'Vehículo dentro' }}</td><td>{{ h.operador_entrada or '—' }}</td><td>{{ h.operador_salida or '—' }}</td></tr>{% endfor %}</table></div>
+{% else %}<p>No hay registros que coincidan con los filtros.</p>{% endif %}</section>{% endblock %}

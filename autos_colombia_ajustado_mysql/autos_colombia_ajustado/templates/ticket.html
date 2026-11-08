@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block title %}Ticket de ingreso {{ ticket.ticket_codigo }}{% endblock %}
+{% block content %}<section class="card ticket-card">
+<div class="ticket-head"><div><h2>🅿 Autos Colombia</h2><p>COMPROBANTE DE INGRESO</p></div><strong>{{ ticket.ticket_codigo }}</strong></div>
+<hr>
+<div class="ticket-grid">
+<div><small>PLACA</small><h1>{{ ticket.placa }}</h1></div>
+<div><small>CELDA ASIGNADA</small><h1>{{ ticket.celda }}</h1></div>
+<div><small>TIPO</small><b>{{ 'Carro' if ticket.tipo == 'CARRO' else 'Moto' }}</b></div>
+<div><small>MARCA</small><b>{{ ticket.marca or 'No registrada' }}</b></div>
+<div><small>COLOR</small><b>{{ ticket.color or 'No registrado' }}</b></div>
+<div><small>FECHA Y HORA DE INGRESO</small><b>{{ ticket.fecha_entrada }}</b></div>
+<div><small>ATENDIÓ</small><b>{{ ticket.operador_entrada or '—' }}</b></div>
+</div>
+<hr><p class="ticket-note">Conserve este comprobante. El registro de ingreso queda almacenado en el sistema. La salida se registra digitando la placa.</p>
+<div class="no-print ticket-actions"><button onclick="window.print()">Imprimir ticket</button> <a class="btn" href="{{ url_for('entrada') }}">Registrar otro vehículo</a> <a class="btn secondary" href="{{ url_for('panel') }}">Volver al panel</a></div>
+</section>
+<style>
+.ticket-card{max-width:620px;margin:2rem auto;padding:1.5rem}.ticket-head{display:flex;justify-content:space-between;align-items:center;gap:1rem}.ticket-head h2{margin:0}.ticket-head p{letter-spacing:.12em;font-size:.8rem;color:#64748b}.ticket-head strong{font-size:.95rem}.ticket-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;padding:1rem 0}.ticket-grid small{display:block;color:#64748b;font-size:.72rem;letter-spacing:.06em;margin-bottom:.3rem}.ticket-grid h1{font-size:1.8rem;margin:0}.ticket-note{font-size:.85rem;color:#475569}.ticket-actions{display:flex;gap:.5rem;flex-wrap:wrap}.btn.secondary{background:#64748b}
+@media print{@page{size:80mm auto;margin:5mm}body{background:white;color:#000;font-size:12px}header,footer,.no-print{display:none!important}main{margin:0;padding:0;min-height:0}.ticket-card{border:0;box-shadow:none;margin:0;padding:0;max-width:none}.ticket-head h2{font-size:18px}.ticket-head strong{font-size:10px}.ticket-grid{gap:.65rem}.ticket-grid h1{font-size:20px}.ticket-note{font-size:10px}}
+</style>{% endblock %}
