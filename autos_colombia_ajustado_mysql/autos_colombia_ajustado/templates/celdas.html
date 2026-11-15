@@ -1,0 +1,144 @@
+{% extends "base.html" %}{% block title %}Gestión de Celdas{% endblock %}
+{% block content %}
+<h2>Gestión y Disponibilidad de Celdas</h2>
+<p class="muted">Consulta en tiempo real de celdas disponibles y ocupadas, filtros por tipo o zona y actualización de celdas libres.</p>
+
+<div class="grid">
+  <div class="card stat"><span>Total de celdas</span><strong>{{ resumen.total or 0 }}</strong></div>
+  <div class="card stat"><span>Disponibles</span><strong style="color:#126338">{{ resumen.disponibles or 0 }}</strong></div>
+  <div class="card stat"><span>Ocupadas</span><strong style="color:#a4261c">{{ resumen.ocupadas or 0 }}</strong></div>
+</div>
+
+<div class="tabs">
+  <a class="tab {% if not filtro_estado %}active{% endif %}" href="{{ url_for('celdas') }}">Todas ({{ resumen.total or 0 }})</a>
+  <a class="tab {% if filtro_estado=='Disponible' %}active{% endif %}" href="{{ url_for('celdas', estado='Disponible', tipo=filtro_tipo, zona=filtro_zona) }}">Disponibles ({{ resumen.disponibles or 0 }})</a>
+  <a class="tab {% if filtro_estado=='Ocupada' %}active{% endif %}" href="{{ url_for('celdas', estado='Ocupada', tipo=filtro_tipo, zona=filtro_zona) }}">Ocupadas ({{ resumen.ocupadas or 0 }})</a>
+</div>
+
+<section class="card">
+  <h3>Consultar celdas</h3>
+  <form method="get" class="filters">
+    <label>Código, placa o ticket
+      <input name="codigo" value="{{ filtro_codigo }}" placeholder="Ej. C-01, ABC123 o AC-...">
+    </label>
+    <label>Tipo de vehículo
+      <select name="tipo">
+        <option value="">Todos</option>
+        <option value="CARRO" {% if filtro_tipo=='CARRO' %}selected{% endif %}>Carro</option>
+        <option value="MOTO" {% if filtro_tipo=='MOTO' %}selected{% endif %}>Moto</option>
+      </select>
+    </label>
+    <label>Zona / Ubicación
+      <input name="zona" list="lista-zonas" value="{{ filtro_zona }}" placeholder="Ej. Zona A">
+      <datalist id="lista-zonas">
+        {% for z in zonas %}<option value="{{ z }}">{% endfor %}
+      </datalist>
+    </label>
+    <label>Estado
+      <select name="estado">
+        <option value="">Todos</option>
+        <option value="Disponible" {% if filtro_estado=='Disponible' %}selected{% endif %}>Disponible</option>
+        <option value="Ocupada" {% if filtro_estado=='Ocupada' %}selected{% endif %}>Ocupada</option>
+      </select>
+    </label>
+    <button>Filtrar</button>
+    <a class="btn secondary" href="{{ url_for('celdas') }}">Limpiar</a>
+  </form>
+</section>
+
+{% if session.get('operador_rol') == 'ADMIN' %}
+<section class="card">
+  <h3>Agregar nueva celda</h3>
+  <form method="post" action="{{ url_for('crear_celda') }}" class="form">
+    <label>Código<input name="codigo" maxlength="10" placeholder="Ej. C-71" required></label>
+    <label>Número<input type="number" name="numero" min="1" placeholder="71" required></label>
+    <label>Tipo
+      <select name="tipo">
+        <option value="CARRO">Carro</option>
+        <option value="MOTO">Moto</option>
+      </select>
+    </label>
+    <label>Zona / Ubicación<input name="zona" maxlength="60" placeholder="Ej. Zona C" required></label>
+    <button>Crear celda</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h3>Listado de celdas ({{ celdas|length }})</h3>
+  {% if celdas %}
+  <div class="table-wrap">
+    <table>
+      <tr>
+        <th>Código</th>
+        <th>N°</th>
+        <th>Tipo</th>
+        <th>Zona / Ubicación</th>
+        <th>Estado</th>
+        <th>Ocupación (Placa / Ticket / Ingreso / Permanencia)</th>
+        <th>Modificar (solo si Disponible)</th>
+      </tr>
+      {% for c in celdas %}
+      <tr>
+        <td><b>{{ c.codigo }}</b></td>
+        <td>{{ c.numero }}</td>
+        <td>{{ c.tipo }}</td>
+        <td>{{ c.zona }}</td>
+        <td>
+          {% if c.estado == 'Disponible' %}
+            <span class="badge badge-ok">Disponible</span>
+          {% else %}
+            <span class="badge badge-off">Ocupada</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if c.estado == 'Ocupada' %}
+            <b>{{ c.placa }}</b> {% if c.marca or c.color %}({{ c.marca or '' }} {{ c.color or '' }}){% endif %}
+            {% if c.estancia_id %} · <a href="{{ url_for('ticket', estancia_id=c.estancia_id) }}">{{ c.ticket_codigo or ('Estancia #' ~ c.estancia_id) }}</a>{% endif %}<br>
+            <small class="muted">Ingreso: {{ c.fecha_entrada }} ({{ c.permanencia_actual }})</small>
+          {% else %}
+            <span class="muted">Sin ocupación activa</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if c.estado == 'Disponible' %}
+          <form method="post" action="{{ url_for('editar_celda', celda_id=c.id) }}" style="display:flex;gap:.35rem;align-items:center;margin:0">
+            <select name="tipo" style="padding:.35rem">
+              <option value="CARRO" {% if c.tipo=='CARRO' %}selected{% endif %}>CARRO</option>
+              <option value="MOTO" {% if c.tipo=='MOTO' %}selected{% endif %}>MOTO</option>
+            </select>
+            <input name="zona" value="{{ c.zona }}" maxlength="60" style="padding:.35rem;width:130px" required>
+            <button class="btn-sm">Guardar</button>
+          </form>
+          {% else %}
+            <span class="muted">Bloqueada por ocupación</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <p>No hay celdas que coincidan con los filtros seleccionados.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h3>Trazabilidad reciente de celdas</h3>
+  {% if auditorias %}
+  <div class="table-wrap">
+    <table>
+      <tr><th>Fecha</th><th>Responsable</th><th>Acción</th><th>Detalle</th></tr>
+      {% for a in auditorias %}
+      <tr>
+        <td>{{ a.creado_en }}</td>
+        <td>{{ a.operador_nombre or 'Sistema' }}</td>
+        <td><span class="badge badge-info">{{ a.accion }}</span></td>
+        <td>{{ a.detalle }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}<p class="muted">Aún no hay modificaciones registradas sobre celdas.</p>{% endif %}
+</section>
+{% endblock %}

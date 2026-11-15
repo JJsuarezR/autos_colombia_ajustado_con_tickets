@@ -1,11 +1,78 @@
 {% extends "base.html" %}{% block title %}Registro de entrada{% endblock %}
-{% block content %}<section class="card"><h2>Registro de entrada</h2>
-<p>Digite la placa y los datos del vehículo.</p>
-<form class="form" method="post">
-<label>Placa<input name="placa" maxlength="6" placeholder="ABC123 / ABC12A" required style="text-transform:uppercase"></label>
-<label>Marca<input name="marca" maxlength="20" placeholder="Ej. Chevrolet"></label>
-<label>Color<input name="color" maxlength="20" placeholder="Ej. Gris"></label>
-<label>Tipo<select name="tipo"><option value="">Seleccione</option><option value="CARRO">Carro</option><option value="MOTO">Moto</option></select></label>
-<button>Registrar entrada y generar ticket</button></form>
-<p class="muted">El ticket queda guardado con el movimiento de entrada y puede imprimirse inmediatamente. Para vehículos ya registrados basta con la placa.</p>
-</section>{% endblock %}
+{% block content %}
+<h2>Control de Ingreso al Parqueadero</h2>
+<p class="muted">Para dar ingreso a un vehículo, este debe existir previamente en el sistema. Si es su primera vez, regístrelo en el paso 1.</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem">
+  <section class="card" style="border-top:4px solid #1457a6">
+    <h3>1. Registrar vehículo nuevo</h3>
+    <p class="muted">Use esta opción cuando la placa aún no exista en el sistema (o para completar marca/color).</p>
+    <form method="post" style="display:grid;gap:.75rem">
+      <input type="hidden" name="accion" value="registrar_vehiculo">
+      <label style="display:grid;gap:.3rem;font-size:.9rem">Placa
+        <input name="placa" maxlength="10" value="{{ placa_preseleccionada }}" placeholder="Carro ABC123 / Moto ABC12" required style="text-transform:uppercase">
+      </label>
+      <label style="display:grid;gap:.3rem;font-size:.9rem">Tipo de vehículo
+        <select name="tipo" required>
+          <option value="">Seleccione tipo</option>
+          <option value="CARRO">Carro</option>
+          <option value="MOTO">Moto</option>
+        </select>
+      </label>
+      <label style="display:grid;gap:.3rem;font-size:.9rem">Marca
+        <input name="marca" maxlength="80" placeholder="Ej. Chevrolet, Yamaha" required>
+      </label>
+      <label style="display:grid;gap:.3rem;font-size:.9rem">Color
+        <input name="color" maxlength="50" placeholder="Ej. Gris, Negro" required>
+      </label>
+      <button type="submit">Guardar vehículo</button>
+    </form>
+  </section>
+
+  <section class="card" style="border-top:4px solid #15803d">
+    <h3>2. Registrar entrada (vehículo existente)</h3>
+    <p class="muted">Asigna automáticamente la primera celda disponible y genera el ticket de ingreso.</p>
+    <form method="post" style="display:grid;gap:.75rem">
+      <input type="hidden" name="accion" value="entrada">
+      <label style="display:grid;gap:.3rem;font-size:.9rem">Placa del vehículo registrado
+        <input name="placa" list="placas-registradas" maxlength="10" value="{{ placa_preseleccionada }}" placeholder="Digite o seleccione la placa" required style="text-transform:uppercase">
+        <datalist id="placas-registradas">
+          {% for v in vehiculos %}
+            <option value="{{ v.placa }}">{{ v.placa }} · {{ v.tipo }} ({{ v.marca or 'Sin marca' }} {{ v.color or '' }})</option>
+          {% endfor %}
+        </datalist>
+      </label>
+      <button type="submit" class="success">Registrar entrada y generar ticket</button>
+    </form>
+    <p class="muted" style="margin-top:1rem">Si digita una placa que no existe, el sistema le indicará registrarla primero en el panel izquierdo.</p>
+  </section>
+</div>
+
+<section class="card">
+  <h3>Vehículos registrados en el catálogo ({{ vehiculos|length }})</h3>
+  {% if vehiculos %}
+  <div class="table-wrap">
+    <table>
+      <tr><th>Placa</th><th>Tipo</th><th>Marca</th><th>Color</th><th>Acción rápida</th></tr>
+      {% for v in vehiculos %}
+      <tr>
+        <td><b>{{ v.placa }}</b></td>
+        <td>{{ v.tipo }}</td>
+        <td>{{ v.marca or '—' }}</td>
+        <td>{{ v.color or '—' }}</td>
+        <td>
+          <form method="post" style="margin:0">
+            <input type="hidden" name="accion" value="entrada">
+            <input type="hidden" name="placa" value="{{ v.placa }}">
+            <button class="btn-sm success" type="submit">Dar entrada</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">Aún no hay vehículos registrados. Agregue el primero en la sección "1. Registrar vehículo nuevo".</p>
+  {% endif %}
+</section>
+{% endblock %}

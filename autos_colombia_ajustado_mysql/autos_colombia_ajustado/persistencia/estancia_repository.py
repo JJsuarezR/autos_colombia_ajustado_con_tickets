@@ -28,16 +28,22 @@ class EstanciaRepository:
         """, (estancia_id,))
         return cur.fetchone()
 
-    def buscar_activa_por_placa(self, cur, placa):
+    def buscar_activa_por_placa_o_ticket(self, cur, referencia):
+        """Busca estancia activa digitando la placa (ej. ABC123) o el código de ticket (ej. AC-20261114-000001)."""
         cur.execute("""
-            SELECT e.id,e.celda_id,e.fecha_entrada,c.codigo
+            SELECT e.id, e.celda_id, e.fecha_entrada, e.ticket_codigo,
+                   v.placa, c.codigo
             FROM estancia e
             JOIN vehiculo v ON v.id=e.vehiculo_id
             JOIN celda c ON c.id=e.celda_id
-            WHERE v.placa=%s AND e.fecha_salida IS NULL
+            WHERE (UPPER(v.placa)=UPPER(%s) OR UPPER(e.ticket_codigo)=UPPER(%s))
+              AND e.fecha_salida IS NULL
             FOR UPDATE
-        """, (placa,))
+        """, (referencia, referencia))
         return cur.fetchone()
+
+    def buscar_activa_por_placa(self, cur, placa):
+        return self.buscar_activa_por_placa_o_ticket(cur, placa)
 
     def cerrar(self, cur, estancia_id, operador_id, fecha):
         cur.execute("""
@@ -86,14 +92,14 @@ class EstanciaRepository:
         """
         params = []
 
-        # Sanitizar valores de entrada convirtiendo cadenas vacías o espacios a None
         placa = placa.strip() if placa and placa.strip() else None
         desde = desde.strip() if desde and desde.strip() else None
         hasta = hasta.strip() if hasta and hasta.strip() else None
 
         if placa:
-            sql += " AND v.placa LIKE %s"
-            params.append(f"%{placa}%")
+            sql += " AND (v.placa LIKE %s OR e.ticket_codigo LIKE %s)"
+            like = f"%{placa}%"
+            params.extend([like, like])
 
         if desde:
             sql += " AND DATE(e.fecha_entrada) >= %s"

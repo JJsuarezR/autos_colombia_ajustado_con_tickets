@@ -1,21 +1,29 @@
-"""Controladores HTTP: reciben solicitudes y delegan las reglas al servicio."""
+"""Controladores HTTP: reciben solicitudes y delegan las reglas a los servicios."""
 
 import pymysql
 from functools import wraps
 from flask import (current_app, flash, redirect, render_template, request,
                    session, url_for)
-from werkzeug.security import check_password_hash, generate_password_hash
 from persistencia.conexion import conectar
 from persistencia.celda_repository import CeldaRepository
 from persistencia.estancia_repository import EstanciaRepository
 from persistencia.operador_repository import OperadorRepository
+from persistencia.vehiculo_repository import VehiculoRepository
+from persistencia.auditoria_repository import AuditoriaRepository
 from aplicacion.servicio_estancias import ServicioEstancias
+from aplicacion.servicio_usuarios import ServicioUsuarios
+from aplicacion.servicio_celdas import ServicioCeldas
+
 
 def registrar_controladores(app):
     servicio = ServicioEstancias(app.config)
+    servicio_usuarios = ServicioUsuarios(app.config)
+    servicio_celdas = ServicioCeldas(app.config)
     celdas_repo = CeldaRepository()
     estancias_repo = EstanciaRepository()
     operadores_repo = OperadorRepository()
+    vehiculos_repo = VehiculoRepository()
+    auditoria_repo = AuditoriaRepository()
 
     def conexion():
         return conectar(current_app.config)
@@ -42,21 +50,17 @@ def registrar_controladores(app):
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if request.method == "POST":
-            usuario = request.form.get("usuario", "").strip()
+            identificador = request.form.get("usuario", "").strip()
             password = request.form.get("password", "")
-            conn = conexion()
             try:
-                with conn.cursor() as cur:
-                    operador = operadores_repo.buscar_por_usuario(cur, usuario)
-            finally:
-                conn.close()
-            if operador and check_password_hash(operador["password_hash"], password):
+                operador = servicio_usuarios.autenticar(identificador, password)
                 session.clear()
                 session["operador_id"] = operador["id"]
                 session["operador_nombre"] = operador["nombre"]
                 session["operador_rol"] = operador["rol"]
                 return redirect(url_for("panel"))
-            flash("Usuario o contraseña incorrectos.", "error")
+            except ValueError as err:
+                flash(str(err), "error")
         return render_template("login.html")
 
     @app.get("/cerrar-sesion")
@@ -82,18 +86,48 @@ def registrar_controladores(app):
     @app.route("/entrada", methods=["GET", "POST"])
     @requiere_sesion
     def entrada():
+        placa_preseleccionada = servicio.normalizar_placa(request.args.get("placa", ""))
         if request.method == "POST":
-            try:
-                estancia_id = servicio.registrar_entrada(
-                    request.form.get("placa"), request.form.get("tipo"),
-                    session["operador_id"], request.form.get("marca"),
-                    request.form.get("color")
-                )
-                return redirect(url_for("ticket", estancia_id=estancia_id))
-            except (ValueError, pymysql.err.IntegrityError) as error:
-                flash(str(error) or "No se pudo registrar la entrada.", "error")
-            return redirect(url_for("entrada"))
-        return render_template("entrada.html")
+            accion = request.form.get("accion", "entrada")
+            if accion == "registrar_vehiculo":
+                try:
+                    placa_reg = servicio.registrar_vehiculo(
+                        request.form.get("placa"),
+                        request.form.get("tipo"),
+                        request.form.get("marca"),
+                        request.form.get("color"),
+                        session["operador_id"],
+                    )
+                    flash(
+                        f"Vehículo {placa_reg} registrado correctamente. Ahora puede darle entrada.",
+                        "ok",
+                    )
+                    return redirect(url_for("entrada", placa=placa_reg))
+                except (ValueError, pymysql.err.IntegrityError) as error:
+                    flash(str(error) or "No se pudo registrar el vehículo.", "error")
+                    return redirect(url_for("entrada"))
+            else:
+                try:
+                    estancia_id = servicio.registrar_entrada(
+                        request.form.get("placa"),
+                        session["operador_id"],
+                    )
+                    return redirect(url_for("ticket", estancia_id=estancia_id))
+                except (ValueError, pymysql.err.IntegrityError) as error:
+                    flash(str(error) or "No se pudo registrar la entrada.", "error")
+                    return redirect(url_for("entrada", placa=servicio.normalizar_placa(request.form.get("placa"))))
+
+        conn = conexion()
+        try:
+            with conn.cursor() as cur:
+                vehiculos = vehiculos_repo.listar(cur)
+        finally:
+            conn.close()
+        return render_template(
+            "entrada.html",
+            vehiculos=vehiculos,
+            placa_preseleccionada=placa_preseleccionada,
+        )
 
     @app.get("/ticket/<int:estancia_id>")
     @requiere_sesion
@@ -114,10 +148,13 @@ def registrar_controladores(app):
     def salida():
         if request.method == "POST":
             try:
-                codigo, permanencia = servicio.registrar_salida(
+                codigo, permanencia, placa, ticket_cod = servicio.registrar_salida(
                     request.form.get("placa"), session["operador_id"]
                 )
-                flash(f"Salida registrada. Celda {codigo} liberada. Permanencia: {permanencia}.", "ok")
+                flash(
+                    f"Salida registrada para {placa} (Ticket: {ticket_cod}). Celda {codigo} liberada. Permanencia: {permanencia}.",
+                    "ok",
+                )
             except ValueError as error:
                 flash(str(error), "error")
             return redirect(url_for("salida"))
@@ -132,7 +169,7 @@ def registrar_controladores(app):
     @app.get("/historial")
     @requiere_sesion
     def historial():
-        placa = servicio.normalizar_placa(request.args.get("placa", ""))
+        placa = servicio.normalizar_referencia_salida(request.args.get("placa", ""))
         desde = request.args.get("desde", "")
         hasta = request.args.get("hasta", "")
         if desde and hasta and desde > hasta:
@@ -147,36 +184,145 @@ def registrar_controladores(app):
         return render_template("historial.html", registros=registros,
                                placa=placa, desde=desde, hasta=hasta)
 
+    # --- ITERACIÓN 2: Gestión de Celdas ---
+    @app.get("/celdas")
+    @requiere_sesion
+    def celdas():
+        codigo = request.args.get("codigo", "").strip()
+        tipo = request.args.get("tipo", "").strip()
+        zona = request.args.get("zona", "").strip()
+        estado = request.args.get("estado", "").strip()
+
+        resumen, lista_celdas, zonas = servicio_celdas.consultar_celdas(
+            codigo=codigo, tipo=tipo, zona=zona, estado=estado
+        )
+        conn = conexion()
+        try:
+            with conn.cursor() as cur:
+                auditorias = auditoria_repo.listar_recientes(cur, entidad="CELDA", limite=10)
+        finally:
+            conn.close()
+
+        return render_template(
+            "celdas.html",
+            resumen=resumen,
+            celdas=lista_celdas,
+            zonas=zonas,
+            auditorias=auditorias,
+            filtro_codigo=codigo,
+            filtro_tipo=tipo,
+            filtro_zona=zona,
+            filtro_estado=estado,
+        )
+
+    @app.post("/celdas/crear")
+    @requiere_admin
+    def crear_celda():
+        try:
+            servicio_celdas.crear_celda(
+                request.form.get("codigo"),
+                request.form.get("numero"),
+                request.form.get("tipo"),
+                request.form.get("zona"),
+                session["operador_id"],
+            )
+            flash("Celda creada correctamente.", "ok")
+        except (ValueError, pymysql.err.IntegrityError) as err:
+            flash(str(err) or "No se pudo crear la celda.", "error")
+        return redirect(url_for("celdas"))
+
+    @app.post("/celdas/<int:celda_id>/editar")
+    @requiere_sesion
+    def editar_celda(celda_id):
+        try:
+            servicio_celdas.modificar_celda(
+                celda_id,
+                request.form.get("tipo"),
+                request.form.get("zona"),
+                session["operador_id"],
+            )
+            flash("Celda actualizada correctamente.", "ok")
+        except (ValueError, pymysql.err.IntegrityError) as err:
+            flash(str(err) or "No se pudo modificar la celda.", "error")
+        return redirect(url_for("celdas"))
+
+    # --- ITERACIÓN 2: Gestión de Usuarios / Operadores ---
     @app.route("/operadores", methods=["GET", "POST"])
     @requiere_admin
     def operadores():
         if request.method == "POST":
-            nombre = request.form.get("nombre", "").strip()
-            usuario = request.form.get("usuario", "").strip()
-            password = request.form.get("password", "")
-            rol = request.form.get("rol", "OPERADOR")
-            if not nombre or not usuario or len(password) < 8:
-                flash("Complete los campos. La contraseña debe tener mínimo 8 caracteres.", "error")
-            elif rol not in ("ADMIN", "OPERADOR"):
-                flash("Rol no válido.", "error")
-            else:
-                conn = conexion()
-                try:
-                    with conn.cursor() as cur:
-                        operadores_repo.crear(cur, nombre, usuario,
-                            generate_password_hash(password), rol)
-                    conn.commit()
-                    flash("Operador creado correctamente.", "ok")
-                except pymysql.err.IntegrityError:
-                    conn.rollback()
-                    flash("El nombre de usuario ya existe.", "error")
-                finally:
-                    conn.close()
+            try:
+                servicio_usuarios.crear_usuario(
+                    request.form.get("nombre"),
+                    request.form.get("usuario"),
+                    request.form.get("correo"),
+                    request.form.get("password"),
+                    request.form.get("rol"),
+                    session["operador_id"],
+                )
+                flash("Usuario creado correctamente.", "ok")
+            except (ValueError, pymysql.err.IntegrityError) as err:
+                flash(str(err) or "No se pudo crear el usuario.", "error")
             return redirect(url_for("operadores"))
+
+        filtro = request.args.get("q", "").strip()
+        estado = request.args.get("estado", "").strip()
+        editar_id = request.args.get("editar", "").strip()
+
         conn = conexion()
         try:
             with conn.cursor() as cur:
-                lista = operadores_repo.listar(cur)
+                lista = operadores_repo.listar(cur, filtro=filtro, estado=estado)
+                admins_activos = operadores_repo.contar_admins_activos(cur)
+                usuario_editar = (
+                    operadores_repo.buscar_por_id(cur, int(editar_id))
+                    if editar_id.isdigit() else None
+                )
+                auditorias = auditoria_repo.listar_recientes(cur, entidad="USUARIO", limite=12)
         finally:
             conn.close()
-        return render_template("operadores.html", operadores=lista)
+
+        return render_template(
+            "operadores.html",
+            operadores=lista,
+            admins_activos=admins_activos,
+            usuario_editar=usuario_editar,
+            auditorias=auditorias,
+            filtro_q=filtro,
+            filtro_estado=estado,
+        )
+
+    @app.post("/operadores/<int:operador_id>/editar")
+    @requiere_admin
+    def editar_operador(operador_id):
+        try:
+            servicio_usuarios.modificar_usuario(
+                operador_id,
+                request.form.get("nombre"),
+                request.form.get("correo"),
+                request.form.get("rol"),
+                request.form.get("activo"),
+                request.form.get("password"),
+                session["operador_id"],
+            )
+            flash("Usuario actualizado correctamente.", "ok")
+        except (ValueError, pymysql.err.IntegrityError) as err:
+            flash(str(err) or "No se pudo actualizar el usuario.", "error")
+        return redirect(url_for("operadores"))
+
+    @app.post("/operadores/<int:operador_id>/estado")
+    @requiere_admin
+    def cambiar_estado_operador(operador_id):
+        activar = request.form.get("accion") == "activar"
+        try:
+            servicio_usuarios.cambiar_estado_usuario(
+                operador_id, activar, session["operador_id"]
+            )
+            flash(
+                "Usuario reactivado correctamente." if activar
+                else "Usuario desactivado. Su acceso ha sido revocado y se conserva su trazabilidad.",
+                "ok",
+            )
+        except ValueError as err:
+            flash(str(err), "error")
+        return redirect(url_for("operadores"))

@@ -1,10 +1,130 @@
-{% extends "base.html" %}{% block title %}Operadores{% endblock %}
-{% block content %}<section class="card"><h2>Gestión de operadores</h2>
-<p>Los operadores identifican a la persona que registra cada entrada y salida.</p>
-<form method="post" class="form">
-<label>Nombre<input name="nombre" required></label><label>Usuario<input name="usuario" required></label>
-<label>Contraseña (mín. 8)<input type="password" name="password" minlength="8" required></label>
-<label>Rol<select name="rol"><option value="OPERADOR">Operador</option><option value="ADMIN">Administrador</option></select></label>
-<button>Crear operador</button></form></section>
-<section class="card"><h3>Operadores registrados</h3><div class="table-wrap"><table><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th></tr>
-{% for o in operadores %}<tr><td>{{ o.nombre }}</td><td>{{ o.usuario }}</td><td>{{ o.rol }}</td><td>{{ 'Activo' if o.activo else 'Inactivo' }}</td></tr>{% endfor %}</table></div></section>{% endblock %}
+{% extends "base.html" %}{% block title %}Gestión de Usuarios{% endblock %}
+{% block content %}
+<h2>Gestión de Usuarios y Operadores</h2>
+<p class="muted">Administración centralizada de cuentas, roles, estados y trazabilidad de cambios. El sistema exige al menos <b>1 administrador activo</b> en todo momento.</p>
+
+{% if usuario_editar %}
+<section class="card" style="border-left:4px solid #1457a6">
+  <h3>Modificar usuario #{{ usuario_editar.id }} ({{ usuario_editar.usuario }})</h3>
+  <form method="post" action="{{ url_for('editar_operador', operador_id=usuario_editar.id) }}" class="form">
+    <label>Nombre completo<input name="nombre" value="{{ usuario_editar.nombre }}" required></label>
+    <label>Correo electrónico<input type="email" name="correo" value="{{ usuario_editar.correo or '' }}" required></label>
+    <label>Rol
+      <select name="rol">
+        <option value="OPERADOR" {% if usuario_editar.rol=='OPERADOR' %}selected{% endif %}>Operador</option>
+        <option value="ADMIN" {% if usuario_editar.rol=='ADMIN' %}selected{% endif %}>Administrador</option>
+      </select>
+    </label>
+    <label>Estado
+      <select name="activo">
+        <option value="1" {% if usuario_editar.activo==1 %}selected{% endif %}>Activo</option>
+        <option value="0" {% if usuario_editar.activo==0 %}selected{% endif %}>Inactivo</option>
+      </select>
+    </label>
+    <label>Nueva contraseña (opcional, mín. 8)<input type="password" name="password" minlength="8" placeholder="Dejar vacío para conservar"></label>
+    <button>Guardar cambios</button>
+    <a class="btn secondary" href="{{ url_for('operadores') }}">Cancelar</a>
+  </form>
+</section>
+{% else %}
+<section class="card">
+  <h3>Registrar nuevo usuario</h3>
+  <form method="post" class="form">
+    <label>Nombre completo<input name="nombre" placeholder="Ej. Laura Gómez" required></label>
+    <label>Usuario<input name="usuario" placeholder="Ej. lgomez" required></label>
+    <label>Correo electrónico<input type="email" name="correo" placeholder="laura@autoscolombia.com" required></label>
+    <label>Contraseña (mín. 8)<input type="password" name="password" minlength="8" required></label>
+    <label>Rol
+      <select name="rol">
+        <option value="OPERADOR">Operador</option>
+        <option value="ADMIN">Administrador</option>
+      </select>
+    </label>
+    <button>Crear usuario</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h3>Consultar usuarios (Administradores activos: {{ admins_activos }})</h3>
+  <form method="get" class="filters" style="margin-bottom:1rem">
+    <label>Buscar (ID, nombre, usuario o correo)
+      <input name="q" value="{{ filtro_q }}" placeholder="Ej. 1, admin o @autoscolombia.com">
+    </label>
+    <label>Estado
+      <select name="estado">
+        <option value="">Todos</option>
+        <option value="1" {% if filtro_estado=='1' %}selected{% endif %}>Activos</option>
+        <option value="0" {% if filtro_estado=='0' %}selected{% endif %}>Inactivos</option>
+      </select>
+    </label>
+    <button>Buscar</button>
+    <a class="btn secondary" href="{{ url_for('operadores') }}">Limpiar</a>
+  </form>
+
+  <div class="table-wrap">
+    <table>
+      <tr>
+        <th>ID</th><th>Nombre</th><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acciones</th>
+      </tr>
+      {% for o in operadores %}
+      <tr>
+        <td>#{{ o.id }}</td>
+        <td><b>{{ o.nombre }}</b></td>
+        <td>{{ o.usuario }}</td>
+        <td>{{ o.correo or '—' }}</td>
+        <td><span class="badge badge-info">{{ o.rol }}</span></td>
+        <td>
+          {% if o.activo %}
+            <span class="badge badge-ok">Activo</span>
+          {% else %}
+            <span class="badge badge-off">Inactivo</span>
+          {% endif %}
+        </td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">
+          <a class="btn btn-sm" href="{{ url_for('operadores', editar=o.id) }}">Editar</a>
+          {% if o.activo %}
+            {% if o.rol == 'ADMIN' and admins_activos <= 1 %}
+              <span class="muted" style="font-size:.8rem">Único admin activo (protegido)</span>
+            {% elif o.id == session.get('operador_id') %}
+              <span class="muted" style="font-size:.8rem">Sesión actual</span>
+            {% else %}
+              <form method="post" action="{{ url_for('cambiar_estado_operador', operador_id=o.id) }}" style="margin:0">
+                <input type="hidden" name="accion" value="desactivar">
+                <button class="danger btn-sm" onclick="return confirm('¿Desactivar al usuario {{ o.usuario }}? Se revocará su acceso de inmediato.');">Desactivar</button>
+              </form>
+            {% endif %}
+          {% else %}
+            <form method="post" action="{{ url_for('cambiar_estado_operador', operador_id=o.id) }}" style="margin:0">
+              <input type="hidden" name="accion" value="activar">
+              <button class="success btn-sm">Reactivar</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">No se encontraron usuarios con los criterios aplicados.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h3>Trazabilidad reciente de usuarios</h3>
+  {% if auditorias %}
+  <div class="table-wrap">
+    <table>
+      <tr><th>Fecha</th><th>Responsable</th><th>Acción</th><th>Detalle</th></tr>
+      {% for a in auditorias %}
+      <tr>
+        <td>{{ a.creado_en }}</td>
+        <td>{{ a.operador_nombre or 'Sistema' }}</td>
+        <td><span class="badge badge-info">{{ a.accion }}</span></td>
+        <td>{{ a.detalle }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}<p class="muted">Aún no hay eventos registrados en este módulo.</p>{% endif %}
+</section>
+{% endblock %}

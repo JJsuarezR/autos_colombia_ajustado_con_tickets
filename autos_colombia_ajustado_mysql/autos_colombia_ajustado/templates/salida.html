@@ -1,9 +1,13 @@
 {% extends "base.html" %}{% block title %}Registro de salida{% endblock %}
 {% block content %}<section class="card"><h2>Registro de salida</h2>
-<p>La salida se registra digitando la placa del vehículo, no el ticket.</p>
-<form class="form" method="post"><label>Placa<input name="placa" maxlength="10" placeholder="ABC123 o ABC12" required></label>
-<button class="danger">Registrar salida</button></form></section>
-<section class="card"><h3>Vehículos que están dentro</h3>
+<p>Puede registrar la salida digitando la <b>placa del vehículo</b> (ej. <code>ABC123</code>) o el <b>código del ticket</b> (ej. <code>AC-20261114-000001</code>).</p>
+<form class="form" method="post">
+  <label>Placa o Código de Ticket
+    <input name="placa" maxlength="32" placeholder="ABC123 o AC-20261114-000001" required style="text-transform:uppercase;min-width:240px">
+  </label>
+  <button class="danger">Registrar salida</button>
+</form></section>
+<section class="card"><h3>Vehículos que están dentro ({{ activos|length }})</h3>
 {% if activos %}<div class="table-wrap"><table><tr><th>Placa</th><th>Tipo</th><th>Marca</th><th>Color</th><th>Celda</th><th>Fecha de entrada</th><th>Ticket</th><th>Operador entrada</th></tr>
 {% for a in activos %}<tr><td><b>{{ a.placa }}</b></td><td>{{ a.tipo }}</td><td>{{ a.marca or '—' }}</td><td>{{ a.color or '—' }}</td><td>{{ a.celda }}</td><td>{{ a.fecha_entrada }}</td><td>{% if a.id %}<a href="{{ url_for('ticket', estancia_id=a.id) }}">{{ a.ticket_codigo or 'Ver ticket' }}</a>{% endif %}</td><td>{{ a.operador_entrada or '—' }}</td></tr>{% endfor %}</table></div>
 {% else %}<p>No hay vehículos dentro.</p>{% endif %}</section>{% endblock %}

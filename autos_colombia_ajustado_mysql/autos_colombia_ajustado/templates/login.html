@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% block title %}Acceso{% endblock %}
-{% block content %}<section class="card login"><h2>Ingreso de operadores</h2>
-<form method="post"><label>Usuario<input name="usuario" required autocomplete="username"></label>
-<label>Contraseña<input type="password" name="password" required autocomplete="current-password"></label>
+{% block content %}<section class="card login"><h2>Ingreso al sistema</h2>
+<form method="post">
+<label>Correo electrónico o usuario<input name="usuario" placeholder="Ingrese su correo o usuario" required autocomplete="username"></label>
+<label>Contraseña<input type="password" name="password" placeholder="Ingrese su contraseña" required autocomplete="current-password"></label>
 <button>Ingresar</button></form>
-<p class="muted">Primer acceso: usuario <b>admin</b>, contraseña <b>Admin123*</b>. Cree operadores desde el menú y cambie esta contraseña antes de publicar.</p>
+<p class="muted">Ingrese con las credenciales asignadas por el administrador del parqueadero.</p>
 </section>{% endblock %}
