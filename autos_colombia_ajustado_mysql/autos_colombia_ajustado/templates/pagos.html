@@ -1,0 +1,349 @@
+{% extends "base.html" %}{% block title %}Gestión de Pagos y Mensualidades{% endblock %}
+{% block content %}
+<h2>Gestión de Pagos y Mensualidades</h2>
+<p class="muted">Modalidad exclusiva por suscripción mensual: <b>Carro $250.000</b> · <b>Moto $100.000</b>. Sin mensualidad activa no se permite el ingreso al parqueadero.</p>
+
+<div class="grid">
+  {% if es_admin %}
+  <div class="card stat">
+    <span>Recaudo del mes actual</span>
+    <strong style="color:#126338">${{ "{:,.0f}".format(kpis.recaudo_mes or 0).replace(",", ".") }}</strong>
+  </div>
+  {% endif %}
+  <div class="card stat">
+    <span>Pagos registrados (mes)</span>
+    <strong>{{ kpis.total_pagos_mes or 0 }}</strong>
+    <small class="muted">{{ kpis.aprobados_mes or 0 }} aprobados · {{ kpis.anulados_mes or 0 }} anulados</small>
+  </div>
+  <div class="card stat">
+    <span>Suscripciones por vencer (5 días)</span>
+    <strong style="color:#92400e">{{ por_vencer or 0 }}</strong>
+  </div>
+</div>
+
+<div class="tabs">
+  <a class="tab {% if tab=='registrar' %}active{% endif %}" href="{{ url_for('pagos', tab='registrar', placa=placa_consulta) }}">Registrar pago mensual</a>
+  <a class="tab {% if tab=='suscripcion' %}active{% endif %}" href="{{ url_for('pagos', tab='suscripcion', placa=placa_consulta) }}">Estado de suscripción</a>
+  {% if es_admin %}
+  <a class="tab {% if tab=='historial' %}active{% endif %}" href="{{ url_for('pagos', tab='historial') }}">Historial y anulación</a>
+  <a class="tab {% if tab=='reporte' %}active{% endif %}" href="{{ url_for('pagos', tab='reporte') }}">Reporte de ingresos</a>
+  {% endif %}
+</div>
+
+{% if tab == 'registrar' %}
+<section class="card" style="border-top:4px solid #15803d">
+  <h3>HU-01 · Registrar pago mensual y actualizar vigencia</h3>
+  <p class="muted">Paso 1: Valide la placa del vehículo para calcular automáticamente su tarifa y periodo de vigencia.</p>
+
+  <form method="get" class="form" style="margin-bottom:1.2rem">
+    <input type="hidden" name="tab" value="registrar">
+    <label>Placa del vehículo
+      <input name="placa" list="placas-pagos" maxlength="10" value="{{ placa_consulta }}" placeholder="Ej. ABC123 o ABC12" required style="text-transform:uppercase;min-width:200px">
+      <datalist id="placas-pagos">
+        {% for v in vehiculos_catalogo %}
+          <option value="{{ v.placa }}">{{ v.placa }} · {{ v.tipo }} ({{ v.propietario or 'Sin propietario' }})</option>
+        {% endfor %}
+      </datalist>
+    </label>
+    <button type="submit">Validar vehículo y calcular tarifa</button>
+  </form>
+
+  {% if info_suscripcion %}
+  <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:1rem;margin-bottom:1.2rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem">
+      <div>
+        <strong>Vehículo validado: {{ info_suscripcion.vehiculo.placa }}</strong> ·
+        <span>{{ info_suscripcion.vehiculo.tipo }} ({{ info_suscripcion.vehiculo.marca or '—' }} {{ info_suscripcion.vehiculo.color or '' }})</span>
+      </div>
+      {% if info_suscripcion.vigencia.activa %}
+        <span class="badge badge-ok">Suscripción ACTIVA hasta {{ info_suscripcion.suscripcion.fecha_vencimiento }}</span>
+      {% elif info_suscripcion.vigencia.tiene_suscripcion %}
+        <span class="badge badge-off">Suscripción VENCIDA ({{ info_suscripcion.suscripcion.fecha_vencimiento }})</span>
+      {% else %}
+        <span class="badge badge-warn">Primera suscripción (sin historial previo)</span>
+      {% endif %}
+    </div>
+    <p class="muted" style="margin:0">
+      Periodo a cubrir con este pago: <b>{{ info_suscripcion.periodo_sugerido }}</b> (la vigencia quedará activa hasta <b>{{ info_suscripcion.fin_sugerido }}</b>).
+    </p>
+  </div>
+
+  <form method="post" style="display:grid;gap:1rem">
+    <input type="hidden" name="placa" value="{{ info_suscripcion.vehiculo.placa }}">
+    <div class="form">
+      <label>Propietario / Suscriptor
+        <input name="propietario" value="{{ info_suscripcion.propietario_sugerido }}" maxlength="120" placeholder="Nombre completo del propietario" required style="min-width:250px">
+      </label>
+      <label>Método de pago
+        <select name="metodo_pago" required style="min-width:220px">
+          {% for m in metodos_pago %}
+            <option value="{{ m }}">{{ m }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Periodo mensual
+        <input value="{{ info_suscripcion.periodo_sugerido }}" readonly style="background:#f1f5f9;min-width:240px">
+      </label>
+    </div>
+
+    <div style="background:#123e70;color:white;padding:1rem 1.25rem;border-radius:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+      <div>
+        <small style="letter-spacing:.08em;opacity:.85">TARIFA MENSUAL ASIGNADA ({{ info_suscripcion.vehiculo.tipo }})</small>
+        <div style="font-size:2rem;font-weight:700">${{ "{:,.0f}".format(info_suscripcion.tarifa).replace(",", ".") }}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:.9rem">Incluye acceso ilimitado durante el periodo</div>
+        <small style="opacity:.85">Al confirmar se actualiza la vigencia y se genera el comprobante</small>
+      </div>
+    </div>
+
+    <div>
+      <button type="submit" class="success">Confirmar pago y generar comprobante</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="muted">¿El vehículo aún no existe en el sistema? Regístrelo primero en <a href="{{ url_for('entrada') }}">Entrada → 1. Registrar vehículo nuevo</a>.</p>
+  {% endif %}
+</section>
+
+{% elif tab == 'suscripcion' %}
+<section class="card">
+  <h3>HU-02 · Consultar estado de suscripción</h3>
+  <p class="muted">Verifique si un vehículo tiene mensualidad vigente y acceso habilitado al parqueadero.</p>
+  <form method="get" class="form" style="margin-bottom:1rem">
+    <input type="hidden" name="tab" value="suscripcion">
+    <label>Placa del vehículo
+      <input name="placa" list="placas-sub" maxlength="10" value="{{ placa_consulta }}" placeholder="Digite la placa" required style="text-transform:uppercase">
+      <datalist id="placas-sub">
+        {% for v in vehiculos_catalogo %}<option value="{{ v.placa }}">{% endfor %}
+      </datalist>
+    </label>
+    <button type="submit">Consultar suscripción</button>
+  </form>
+
+  {% if info_suscripcion %}
+  <div class="card" style="background:#f8fafc;margin-bottom:1rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+      <div>
+        <h4 style="margin:0 0 .35rem 0">{{ info_suscripcion.vehiculo.placa }} · {{ info_suscripcion.vehiculo.tipo }} ({{ info_suscripcion.vehiculo.marca or '—' }} {{ info_suscripcion.vehiculo.color or '' }})</h4>
+        <p style="margin:.2rem 0">Propietario: <b>{{ info_suscripcion.propietario_sugerido or 'No asignado' }}</b></p>
+        {% if info_suscripcion.suscripcion %}
+          <p style="margin:.2rem 0">Vigencia: desde <b>{{ info_suscripcion.suscripcion.fecha_inicio }}</b> hasta <b>{{ info_suscripcion.suscripcion.fecha_vencimiento }}</b></p>
+        {% else %}
+          <p style="margin:.2rem 0">El vehículo no registra pagos de mensualidad.</p>
+        {% endif %}
+      </div>
+      <div style="text-align:right">
+        {% if info_suscripcion.vigencia.activa %}
+          <span class="badge badge-ok" style="font-size:.95rem;padding:.4rem .8rem">ACTIVA · ACCESO PERMITIDO</span>
+          <div class="muted" style="margin-top:.4rem">Quedan {{ info_suscripcion.vigencia.dias_restantes }} día(s) de vigencia</div>
+        {% elif info_suscripcion.vigencia.tiene_suscripcion %}
+          <span class="badge badge-off" style="font-size:.95rem;padding:.4rem .8rem">VENCIDA · ACCESO BLOQUEADO</span>
+        {% else %}
+          <span class="badge badge-warn" style="font-size:.95rem;padding:.4rem .8rem">SIN SUSCRIPCIÓN · ACCESO BLOQUEADO</span>
+        {% endif %}
+        <div style="margin-top:.6rem">
+          <a class="btn btn-sm success" href="{{ url_for('pagos', tab='registrar', placa=info_suscripcion.vehiculo.placa) }}">Registrar / Renovar mensualidad</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <h4>Suscripciones registradas ({{ suscripciones_lista|length }})</h4>
+  {% if suscripciones_lista %}
+  <div class="table-wrap">
+    <table>
+      <tr><th>Placa</th><th>Tipo</th><th>Propietario</th><th>Inicio</th><th>Vencimiento</th><th>Estado</th><th>Acción</th></tr>
+      {% for s in suscripciones_lista %}
+      <tr>
+        <td><b>{{ s.placa }}</b></td>
+        <td>{{ s.tipo }}</td>
+        <td>{{ s.propietario }}</td>
+        <td>{{ s.fecha_inicio }}</td>
+        <td><b>{{ s.fecha_vencimiento }}</b></td>
+        <td>
+          {% if s.fecha_vencimiento >= hoy %}
+            <span class="badge badge-ok">ACTIVA</span>
+          {% else %}
+            <span class="badge badge-off">VENCIDA</span>
+          {% endif %}
+        </td>
+        <td><a class="btn btn-sm" href="{{ url_for('pagos', tab='registrar', placa=s.placa) }}">Renovar</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}<p class="muted">Aún no hay suscripciones registradas.</p>{% endif %}
+</section>
+
+{% elif tab == 'historial' and es_admin %}
+<section class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
+    <div>
+      <h3 style="margin:0">HU-03 · Historial, búsqueda y anulación de pagos</h3>
+      <small class="muted">Los pagos anulados permanecen visibles con su responsable y motivo para auditoría.</small>
+    </div>
+    <a class="btn secondary" href="{{ url_for('exportar_pagos_csv', criterio=criterio_hist, desde=desde_hist, hasta=hasta_hist, estado_pago=estado_hist) }}">Exportar CSV</a>
+  </div>
+
+  <form method="get" class="filters" style="margin-bottom:1rem">
+    <input type="hidden" name="tab" value="historial">
+    <label>Placa, propietario o comprobante
+      <input name="criterio" value="{{ criterio_hist }}" placeholder="Ej. ABC123, María o PAG-...">
+    </label>
+    <label>Fecha inicio
+      <input type="date" name="desde" value="{{ desde_hist }}">
+    </label>
+    <label>Fecha fin
+      <input type="date" name="hasta" value="{{ hasta_hist }}">
+    </label>
+    <label>Estado
+      <select name="estado_pago">
+        <option value="">Todos</option>
+        <option value="APROBADO" {% if estado_hist=='APROBADO' %}selected{% endif %}>Aprobados</option>
+        <option value="ANULADO" {% if estado_hist=='ANULADO' %}selected{% endif %}>Anulados</option>
+      </select>
+    </label>
+    <button type="submit">Buscar</button>
+    <a class="btn secondary" href="{{ url_for('pagos', tab='historial') }}">Limpiar</a>
+  </form>
+
+  {% if historial_pagos %}
+  <div class="table-wrap">
+    <table>
+      <tr>
+        <th>Comprobante</th><th>Placa</th><th>Propietario</th><th>Fecha pago</th>
+        <th>Periodo</th><th>Método</th><th>Valor</th><th>Estado</th><th>Acciones</th>
+      </tr>
+      {% for p in historial_pagos %}
+      <tr>
+        <td><a href="{{ url_for('comprobante_pago', pago_id=p.id) }}"><b>{{ p.comprobante_codigo }}</b></a></td>
+        <td>{{ p.placa }} ({{ p.tipo_vehiculo }})</td>
+        <td>{{ p.propietario }}</td>
+        <td>{{ p.fecha_pago }}</td>
+        <td>{{ p.periodo_etiqueta }}</td>
+        <td>{{ p.metodo_pago }}</td>
+        <td><b>${{ "{:,.0f}".format(p.valor).replace(",", ".") }}</b></td>
+        <td>
+          {% if p.estado == 'APROBADO' %}
+            <span class="badge badge-ok">Aprobado</span>
+          {% else %}
+            <span class="badge badge-off" title="Motivo: {{ p.motivo_anulacion }}">Anulado</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if p.estado == 'APROBADO' %}
+            <form method="post" action="{{ url_for('anular_pago', pago_id=p.id) }}" style="display:flex;gap:.3rem;align-items:center;margin:0">
+              <input name="motivo" placeholder="Motivo anulación" minlength="5" required style="padding:.32rem;width:150px">
+              <button class="danger btn-sm" onclick="return confirm('¿Confirma anular el comprobante {{ p.comprobante_codigo }}?');">Anular</button>
+            </form>
+          {% else %}
+            <small class="muted">Por {{ p.anulado_por_nombre or 'Admin' }}: {{ p.motivo_anulacion }}</small>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No se encontraron pagos con los criterios seleccionados.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h3>Auditoría de pagos y anulaciones</h3>
+  {% if auditorias_pagos %}
+  <div class="table-wrap">
+    <table>
+      <tr><th>Fecha</th><th>Responsable</th><th>Acción</th><th>Detalle</th></tr>
+      {% for a in auditorias_pagos %}
+      <tr>
+        <td>{{ a.creado_en }}</td>
+        <td>{{ a.operador_nombre or 'Sistema' }}</td>
+        <td><span class="badge badge-info">{{ a.accion }}</span></td>
+        <td>{{ a.detalle }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}<p class="muted">Sin eventos registrados.</p>{% endif %}
+</section>
+
+{% elif tab == 'reporte' and es_admin %}
+<section class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
+    <div>
+      <h3 style="margin:0">HU-04 · Reporte de ingresos por mensualidades</h3>
+      <small class="muted">Consulte y exporte el balance financiero consolidado y el desglose por tipo de vehículo y método de pago.</small>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <a class="btn success" href="{{ url_for('exportar_reporte_ingresos', rep_desde=desde_rep, rep_hasta=hasta_rep, rep_tipo=tipo_rep) }}">Exportar reporte (CSV)</a>
+      <button type="button" class="secondary" onclick="window.print()">Imprimir / Guardar PDF</button>
+    </div>
+  </div>
+
+  <form method="get" class="filters" style="margin-bottom:1.2rem">
+    <input type="hidden" name="tab" value="reporte">
+    <label>Fecha inicial
+      <input type="date" name="rep_desde" value="{{ desde_rep }}">
+    </label>
+    <label>Fecha final
+      <input type="date" name="rep_hasta" value="{{ hasta_rep }}">
+    </label>
+    <label>Tipo de vehículo
+      <select name="rep_tipo">
+        <option value="">Todos (Carros y Motos)</option>
+        <option value="CARRO" {% if tipo_rep=='CARRO' %}selected{% endif %}>Solo Carros ($250.000)</option>
+        <option value="MOTO" {% if tipo_rep=='MOTO' %}selected{% endif %}>Solo Motos ($100.000)</option>
+      </select>
+    </label>
+    <button type="submit">Generar reporte</button>
+    <a class="btn secondary" href="{{ url_for('pagos', tab='reporte') }}">Todo el historial</a>
+  </form>
+
+  {% if reporte_resumen %}
+  <div class="grid" style="margin-bottom:1.2rem">
+    <div class="card stat" style="border-left:4px solid #15803d">
+      <span>Ingreso neto recaudado</span>
+      <strong style="color:#126338">${{ "{:,.0f}".format(reporte_resumen.ingreso_neto or 0).replace(",", ".") }}</strong>
+      <small class="muted">{{ reporte_resumen.cantidad_aprobados or 0 }} pagos aprobados</small>
+    </div>
+    <div class="card stat" style="border-left:4px solid #1457a6">
+      <span>Ingresos Carros ($250.000)</span>
+      <strong>${{ "{:,.0f}".format(reporte_resumen.ingresos_carro or 0).replace(",", ".") }}</strong>
+      <small class="muted">{{ reporte_resumen.pagos_carro or 0 }} mensualidades</small>
+    </div>
+    <div class="card stat" style="border-left:4px solid #0284c7">
+      <span>Ingresos Motos ($100.000)</span>
+      <strong>${{ "{:,.0f}".format(reporte_resumen.ingresos_moto or 0).replace(",", ".") }}</strong>
+      <small class="muted">{{ reporte_resumen.pagos_moto or 0 }} mensualidades</small>
+    </div>
+    <div class="card stat" style="border-left:4px solid #b42318">
+      <span>Total anulaciones</span>
+      <strong style="color:#a4261c">${{ "{:,.0f}".format(reporte_resumen.total_anulado or 0).replace(",", ".") }}</strong>
+      <small class="muted">{{ reporte_resumen.cantidad_anulados or 0 }} pagos anulados</small>
+    </div>
+  </div>
+
+  <h4>Distribución del recaudo aprobado por método de pago</h4>
+  {% if reporte_metodos %}
+  <div class="table-wrap">
+    <table>
+      <tr><th>Método de pago</th><th>Cantidad de pagos</th><th>Total recaudado</th></tr>
+      {% for m in reporte_metodos %}
+      <tr>
+        <td><b>{{ m.metodo_pago }}</b></td>
+        <td>{{ m.cantidad }}</td>
+        <td><b>${{ "{:,.0f}".format(m.total).replace(",", ".") }}</b></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No hay pagos aprobados en el rango de fechas seleccionado.</p>
+  {% endif %}
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

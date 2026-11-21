@@ -1,7 +1,8 @@
 """Entidades principales del dominio Autos Colombia."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
 
@@ -12,6 +13,7 @@ class Vehiculo:
     tipo: str  # CARRO o MOTO
     marca: Optional[str] = None
     color: Optional[str] = None
+    propietario: Optional[str] = None
 
 
 @dataclass
@@ -45,6 +47,37 @@ class Estancia:
     fecha_entrada: datetime
     fecha_salida: Optional[datetime]
     ticket_codigo: Optional[str] = None
+
+
+@dataclass
+class Suscripcion:
+    id: int
+    vehiculo_id: int
+    propietario: str
+    fecha_inicio: date
+    fecha_vencimiento: date
+    estado: str  # ACTIVA o VENCIDA
+
+
+@dataclass
+class PagoMensualidad:
+    id: int
+    comprobante_codigo: str
+    suscripcion_id: int
+    vehiculo_id: int
+    propietario: str
+    tipo_vehiculo: str
+    periodo_etiqueta: str
+    fecha_inicio_periodo: date
+    fecha_fin_periodo: date
+    valor: Decimal
+    metodo_pago: str
+    estado: str  # APROBADO o ANULADO
+    operador_id: int
+    fecha_pago: datetime
+    anulado_por_id: Optional[int] = None
+    fecha_anulacion: Optional[datetime] = None
+    motivo_anulacion: Optional[str] = None
 
 
 @dataclass

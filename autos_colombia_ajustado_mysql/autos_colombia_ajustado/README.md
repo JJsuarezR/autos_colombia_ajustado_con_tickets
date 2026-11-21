@@ -1,4 +1,4 @@
-# Autos Colombia — Sistema de Gestión de Parqueadero (Con Tickets e Iteración 2)
+# Autos Colombia — Sistema de Gestión de Parqueadero (Iteración 1, 2 y 3)
 
 Aplicación web desarrollada en **Python (Flask)** y **MySQL** bajo arquitectura en 4 capas (`presentacion`, `aplicacion`, `dominio`, `persistencia`).
 
@@ -52,34 +52,35 @@ Configura los datos de acceso a tu servidor MySQL en la misma terminal (por defe
   export DB_PASSWORD=tu_clave_mysql
   export DB_NAME=parqueadero
   ```
-*(Nota: No necesitas ejecutar `schema.sql` manualmente a menos que uses un usuario MySQL sin permisos de creación/alteración de tablas; al arrancar `app.py`, el sistema crea o actualiza automáticamente la base `parqueadero` sin borrar datos existentes).*
+*(Nota: Al arrancar `app.py`, el sistema crea o actualiza automáticamente la base `parqueadero` y sus tablas sin borrar datos previos).*
 
 ### Paso 6: Ejecutar la aplicación
 ```bash
 python app.py
 ```
-Verás en consola que el servidor queda activo en: **`http://127.0.0.1:5000`**
+El servidor quedará activo en **`http://127.0.0.1:5000`**.
 
 ### Paso 7: Iniciar sesión con el Administrador inicial
-Abre **`http://127.0.0.1:5000`** en tu navegador e ingresa con las credenciales del administrador creado automáticamente en el primer arranque:
+Abre **`http://127.0.0.1:5000`** en tu navegador e ingresa con las credenciales del administrador inicial:
 - **Usuario:** `admin`
 - **Correo electrónico:** `admin@autoscolombia.com`
 - **Contraseña:** `Admin123*`
 
-> **Recomendación de seguridad:** Una vez dentro del sistema, ve al menú **Usuarios**, edita el administrador para cambiar la contraseña inicial y crea las cuentas de los operadores.
-
 ---
 
-## Funcionalidades principales del sistema
+## Funcionalidades por Iteración
 
-1. **Control de Entrada en dos pasos (`/entrada`)**:
-   - **Opción 1 — Registrar vehículo nuevo**: Registra placa (`ABC123` para carro; `ABC12` o `ABC12D` para moto), tipo, marca y color en el catálogo.
-   - **Opción 2 — Registrar entrada (vehículo existente)**: Valida que el vehículo exista en el catálogo, asigna la primera celda libre de su tipo y genera el ticket imprimible (`AC-YYYYMMDD-000001`).
-2. **Registro de Salida (`/salida`)**:
-   - Permite dar salida digitando tanto la **placa del vehículo** como el **código del ticket**, liberando la celda y calculando el tiempo de permanencia.
-3. **Gestión de Celdas (`/celdas`)**:
-   - Consulta en tiempo real de celdas disponibles y ocupadas, filtros por código/placa/ticket, tipo y zona, edición de celdas disponibles y creación de nuevas celdas (rol Administrador).
-4. **Gestión de Usuarios y Protección de Administrador (`/operadores`)**:
-   - Inicio de sesión por usuario o correo electrónico, creación, edición, desactivación/reactivación lógica y regla de integridad que impide desactivar o quitar el rol cuando solo queda **1 administrador activo**.
-5. **Historial y Auditoría (`/historial`)**:
-   - Filtro por placa, ticket y rango de fechas, más registro de trazabilidad (`auditoria_sistema`).
+### Iteración 1 — Entradas, Salidas y Tickets
+- Registro de vehículos nuevos (`ABC123` para carro; `ABC12` o `ABC12D` para moto) con marca, color y propietario.
+- Registro de entrada con asignación automática de celda y generación de ticket imprimible en 80 mm (`AC-YYYYMMDD-000001`).
+- Registro de salida digitando **placa** o **código de ticket**, liberando celda y calculando permanencia.
+
+### Iteración 2 — Gestión de Celdas y Usuarios
+- **Celdas (`/celdas`)**: Consulta en tiempo real de celdas disponibles y ocupadas; **la modificación y creación de celdas es exclusiva del rol Administrador** (el operador solo tiene vista de consulta).
+- **Usuarios (`/operadores`)**: Inicio de sesión por correo o usuario, creación, edición, desactivación/reactivación lógica y protección que impide dejar menos de **1 administrador activo**.
+
+### Iteración 3 — Pagos de Mensualidad y Suscripciones (`/pagos`)
+- **Modelo de suscripción mensual**: Tarifas fijas automáticas de **$250.000 para Carros** y **$100.000 para Motos** (sin cobros por hora o día).
+- **Control de acceso en Entrada**: Si el vehículo no cuenta con una mensualidad vigente, el sistema bloquea el ingreso al parqueadero.
+- **Operaciones de Operador y Administrador**: Validar vehículo, calcular tarifa, consultar estado de suscripción, registrar pago mensual (Efectivo, Tarjeta o Transferencia), actualizar vigencia y generar comprobante imprimible (`PAG-YYYYMMDD-00001`).
+- **Funciones exclusivas de Administrador**: Consultar historial completo de pagos, buscar por placa/propietario/comprobante/fecha, exportar CSV, anular pagos con motivo obligatorio y auditoría (`auditoria_sistema`), y generar reportes financieros de ingresos.

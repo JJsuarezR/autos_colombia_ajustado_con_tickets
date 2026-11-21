@@ -1,0 +1,47 @@
+{% extends "base.html" %}{% block title %}Comprobante de Pago {{ pago.comprobante_codigo }}{% endblock %}
+{% block content %}
+<section class="card ticket-card">
+  <div class="ticket-head">
+    <div>
+      <h2>🅿 Autos Colombia</h2>
+      <p>COMPROBANTE DE PAGO DE MENSUALIDAD</p>
+    </div>
+    <div style="text-align:right">
+      <strong>{{ pago.comprobante_codigo }}</strong><br>
+      {% if pago.estado == 'APROBADO' %}
+        <span class="badge badge-ok">APROBADO</span>
+      {% else %}
+        <span class="badge badge-off">ANULADO</span>
+      {% endif %}
+    </div>
+  </div>
+  <hr>
+  <div class="ticket-grid">
+    <div><small>PLACA VEHÍCULO</small><h1>{{ pago.placa }}</h1></div>
+    <div><small>VALOR PAGADO</small><h1>${{ "{:,.0f}".format(pago.valor).replace(",", ".") }}</h1></div>
+    <div><small>PROPIETARIO / SUSCRIPTOR</small><b>{{ pago.propietario }}</b></div>
+    <div><small>TIPO DE VEHÍCULO</small><b>{{ 'Carro ($250.000/mes)' if pago.tipo_vehiculo == 'CARRO' else 'Moto ($100.000/mes)' }}</b></div>
+    <div><small>PERIODO CUBIERTO</small><b>{{ pago.periodo_etiqueta }}</b></div>
+    <div><small>VIGENCIA HASTA</small><b>{{ pago.fecha_fin_periodo }}</b></div>
+    <div><small>MÉTODO DE PAGO</small><b>{{ pago.metodo_pago }}</b></div>
+    <div><small>FECHA Y HORA DE PAGO</small><b>{{ pago.fecha_pago }}</b></div>
+    <div><small>CAJERO / OPERADOR</small><b>{{ pago.operador_nombre or '—' }}</b></div>
+  </div>
+  {% if pago.estado == 'ANULADO' %}
+  <div class="msg error" style="margin-top:.5rem">
+    <b>Comprobante anulado</b> el {{ pago.fecha_anulacion }} por {{ pago.anulado_por_nombre or 'Administrador' }}. Motivo: {{ pago.motivo_anulacion }}
+  </div>
+  {% endif %}
+  <hr>
+  <p class="ticket-note">Este comprobante acredita el pago de la suscripción mensual en Autos Colombia y habilita el ingreso del vehículo durante la vigencia indicada.</p>
+  <div class="no-print ticket-actions">
+    <button onclick="window.print()">Imprimir comprobante</button>
+    <a class="btn success" href="{{ url_for('entrada', placa=pago.placa) }}">Ir a registrar entrada</a>
+    <a class="btn secondary" href="{{ url_for('pagos') }}">Volver a Pagos</a>
+  </div>
+</section>
+<style>
+.ticket-card{max-width:650px;margin:2rem auto;padding:1.5rem}.ticket-head{display:flex;justify-content:space-between;align-items:center;gap:1rem}.ticket-head h2{margin:0}.ticket-head p{letter-spacing:.1em;font-size:.8rem;color:#64748b;margin:.2rem 0 0 0}.ticket-head strong{font-size:.95rem}.ticket-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;padding:1rem 0}.ticket-grid small{display:block;color:#64748b;font-size:.72rem;letter-spacing:.06em;margin-bottom:.25rem}.ticket-grid h1{font-size:1.7rem;margin:0}.ticket-note{font-size:.85rem;color:#475569}.ticket-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+@media print{@page{size:80mm auto;margin:5mm}body{background:white;color:#000;font-size:12px}header,footer,.no-print{display:none!important}main{margin:0;padding:0;min-height:0}.ticket-card{border:0;box-shadow:none;margin:0;padding:0;max-width:none}.ticket-grid{gap:.65rem}.ticket-grid h1{font-size:18px}.ticket-note{font-size:10px}}
+</style>
+{% endblock %}

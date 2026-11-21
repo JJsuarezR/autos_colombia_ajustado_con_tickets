@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}Gestión de Celdas{% endblock %}
 {% block content %}
 <h2>Gestión y Disponibilidad de Celdas</h2>
-<p class="muted">Consulta en tiempo real de celdas disponibles y ocupadas, filtros por tipo o zona y actualización de celdas libres.</p>
+<p class="muted">Consulta en tiempo real de celdas disponibles y ocupadas. {% if session.get('operador_rol') == 'ADMIN' %}Como administrador puede crear celdas o modificar su tipo, zona y estado (Disponible / Ocupada).{% else %}Vista de consulta operativa (solo el administrador puede modificar o crear celdas).{% endif %}</p>
 
 <div class="grid">
   <div class="card stat"><span>Total de celdas</span><strong>{{ resumen.total or 0 }}</strong></div>
@@ -76,7 +76,9 @@
         <th>Zona / Ubicación</th>
         <th>Estado</th>
         <th>Ocupación (Placa / Ticket / Ingreso / Permanencia)</th>
-        <th>Modificar (solo si Disponible)</th>
+        {% if session.get('operador_rol') == 'ADMIN' %}
+        <th>Editar celda (Tipo / Zona / Estado)</th>
+        {% endif %}
       </tr>
       {% for c in celdas %}
       <tr>
@@ -92,28 +94,32 @@
           {% endif %}
         </td>
         <td>
-          {% if c.estado == 'Ocupada' %}
+          {% if c.estado == 'Ocupada' and c.placa %}
             <b>{{ c.placa }}</b> {% if c.marca or c.color %}({{ c.marca or '' }} {{ c.color or '' }}){% endif %}
             {% if c.estancia_id %} · <a href="{{ url_for('ticket', estancia_id=c.estancia_id) }}">{{ c.ticket_codigo or ('Estancia #' ~ c.estancia_id) }}</a>{% endif %}<br>
             <small class="muted">Ingreso: {{ c.fecha_entrada }} ({{ c.permanencia_actual }})</small>
+          {% elif c.estado == 'Ocupada' %}
+            <span class="badge badge-warn">Ocupada / Bloqueada manualmente</span>
           {% else %}
             <span class="muted">Sin ocupación activa</span>
           {% endif %}
         </td>
+        {% if session.get('operador_rol') == 'ADMIN' %}
         <td>
-          {% if c.estado == 'Disponible' %}
           <form method="post" action="{{ url_for('editar_celda', celda_id=c.id) }}" style="display:flex;gap:.35rem;align-items:center;margin:0">
             <select name="tipo" style="padding:.35rem">
               <option value="CARRO" {% if c.tipo=='CARRO' %}selected{% endif %}>CARRO</option>
               <option value="MOTO" {% if c.tipo=='MOTO' %}selected{% endif %}>MOTO</option>
             </select>
-            <input name="zona" value="{{ c.zona }}" maxlength="60" style="padding:.35rem;width:130px" required>
+            <input name="zona" value="{{ c.zona }}" maxlength="60" style="padding:.35rem;width:85px" required>
+            <select name="estado" style="padding:.35rem">
+              <option value="Disponible" {% if c.estado=='Disponible' %}selected{% endif %}>Disponible</option>
+              <option value="Ocupada" {% if c.estado=='Ocupada' %}selected{% endif %}>Ocupada</option>
+            </select>
             <button class="btn-sm">Guardar</button>
           </form>
-          {% else %}
-            <span class="muted">Bloqueada por ocupación</span>
-          {% endif %}
         </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </table>

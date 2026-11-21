@@ -1,5 +1,5 @@
--- Autos Colombia (Iteración 1 con Tickets + Iteración 2). Ejecutar en MySQL Workbench.
--- El script crea o actualiza el esquema, tablas, trazabilidad y 80 celdas iniciales sin borrar datos.
+-- Autos Colombia (Iteración 1 + Iteración 2 + Iteración 3 Pagos/Mensualidades).
+-- Ejecutar en MySQL Workbench si se desea inicialización manual; app.py también migra automáticamente sin borrar datos.
 CREATE DATABASE IF NOT EXISTS parqueadero
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE parqueadero;
@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS vehiculo (
   placa VARCHAR(10) NOT NULL UNIQUE,
   tipo ENUM('CARRO','MOTO') NOT NULL,
   marca VARCHAR(80) NULL,
-  color VARCHAR(50) NULL
+  color VARCHAR(50) NULL,
+  propietario VARCHAR(120) NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS celda (
@@ -50,6 +51,42 @@ CREATE TABLE IF NOT EXISTS estancia (
   CONSTRAINT fk_estancia_operador_salida FOREIGN KEY (operador_salida_id) REFERENCES operador(id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS suscripcion (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  vehiculo_id INT NOT NULL UNIQUE,
+  propietario VARCHAR(120) NOT NULL,
+  fecha_inicio DATE NOT NULL,
+  fecha_vencimiento DATE NOT NULL,
+  estado ENUM('ACTIVA','VENCIDA') NOT NULL DEFAULT 'ACTIVA',
+  creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en DATETIME NULL,
+  CONSTRAINT fk_suscripcion_vehiculo FOREIGN KEY (vehiculo_id) REFERENCES vehiculo(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS pago_mensualidad (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  comprobante_codigo VARCHAR(32) NOT NULL UNIQUE,
+  suscripcion_id INT NOT NULL,
+  vehiculo_id INT NOT NULL,
+  propietario VARCHAR(120) NOT NULL,
+  tipo_vehiculo ENUM('CARRO','MOTO') NOT NULL,
+  periodo_etiqueta VARCHAR(60) NOT NULL,
+  fecha_inicio_periodo DATE NOT NULL,
+  fecha_fin_periodo DATE NOT NULL,
+  valor DECIMAL(12,2) NOT NULL,
+  metodo_pago ENUM('Efectivo','Tarjeta débito/crédito','Transferencia') NOT NULL,
+  estado ENUM('APROBADO','ANULADO') NOT NULL DEFAULT 'APROBADO',
+  operador_id INT NOT NULL,
+  fecha_pago DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  anulado_por_id INT NULL,
+  fecha_anulacion DATETIME NULL,
+  motivo_anulacion VARCHAR(255) NULL,
+  CONSTRAINT fk_pago_suscripcion FOREIGN KEY (suscripcion_id) REFERENCES suscripcion(id),
+  CONSTRAINT fk_pago_vehiculo FOREIGN KEY (vehiculo_id) REFERENCES vehiculo(id),
+  CONSTRAINT fk_pago_operador FOREIGN KEY (operador_id) REFERENCES operador(id),
+  CONSTRAINT fk_pago_anulado_por FOREIGN KEY (anulado_por_id) REFERENCES operador(id)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS auditoria_sistema (
   id INT AUTO_INCREMENT PRIMARY KEY,
   operador_id INT NULL,
@@ -60,9 +97,6 @@ CREATE TABLE IF NOT EXISTS auditoria_sistema (
   creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_auditoria_operador FOREIGN KEY (operador_id) REFERENCES operador(id)
 ) ENGINE=InnoDB;
-
--- Operador administrador inicial: el hash se crea automáticamente al ejecutar app.py.
--- Usuario: admin | Correo: admin@autoscolombia.com | Clave inicial: Admin123*
 
 INSERT IGNORE INTO celda(codigo,numero,tipo,zona,estado) VALUES
 ('M-01',1,'MOTO','Zona Motos','Disponible'),('M-02',2,'MOTO','Zona Motos','Disponible'),

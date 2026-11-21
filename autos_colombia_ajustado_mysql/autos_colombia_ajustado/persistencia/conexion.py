@@ -60,7 +60,8 @@ def inicializar_base_datos(config):
                     placa VARCHAR(10) NOT NULL UNIQUE,
                     tipo ENUM('CARRO','MOTO') NOT NULL,
                     marca VARCHAR(80) NULL,
-                    color VARCHAR(50) NULL
+                    color VARCHAR(50) NULL,
+                    propietario VARCHAR(120) NULL
                 ) ENGINE=InnoDB
             """)
             cur.execute("""
@@ -103,6 +104,44 @@ def inicializar_base_datos(config):
                 ) ENGINE=InnoDB
             """)
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS suscripcion (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    vehiculo_id INT NOT NULL UNIQUE,
+                    propietario VARCHAR(120) NOT NULL,
+                    fecha_inicio DATE NOT NULL,
+                    fecha_vencimiento DATE NOT NULL,
+                    estado ENUM('ACTIVA','VENCIDA') NOT NULL DEFAULT 'ACTIVA',
+                    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    actualizado_en DATETIME NULL,
+                    CONSTRAINT fk_suscripcion_vehiculo FOREIGN KEY (vehiculo_id) REFERENCES vehiculo(id)
+                ) ENGINE=InnoDB
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS pago_mensualidad (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    comprobante_codigo VARCHAR(32) NOT NULL UNIQUE,
+                    suscripcion_id INT NOT NULL,
+                    vehiculo_id INT NOT NULL,
+                    propietario VARCHAR(120) NOT NULL,
+                    tipo_vehiculo ENUM('CARRO','MOTO') NOT NULL,
+                    periodo_etiqueta VARCHAR(60) NOT NULL,
+                    fecha_inicio_periodo DATE NOT NULL,
+                    fecha_fin_periodo DATE NOT NULL,
+                    valor DECIMAL(12,2) NOT NULL,
+                    metodo_pago ENUM('Efectivo','Tarjeta débito/crédito','Transferencia') NOT NULL,
+                    estado ENUM('APROBADO','ANULADO') NOT NULL DEFAULT 'APROBADO',
+                    operador_id INT NOT NULL,
+                    fecha_pago DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    anulado_por_id INT NULL,
+                    fecha_anulacion DATETIME NULL,
+                    motivo_anulacion VARCHAR(255) NULL,
+                    CONSTRAINT fk_pago_suscripcion FOREIGN KEY (suscripcion_id) REFERENCES suscripcion(id),
+                    CONSTRAINT fk_pago_vehiculo FOREIGN KEY (vehiculo_id) REFERENCES vehiculo(id),
+                    CONSTRAINT fk_pago_operador FOREIGN KEY (operador_id) REFERENCES operador(id),
+                    CONSTRAINT fk_pago_anulado_por FOREIGN KEY (anulado_por_id) REFERENCES operador(id)
+                ) ENGINE=InnoDB
+            """)
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS auditoria_sistema (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     operador_id INT NULL,
@@ -115,20 +154,21 @@ def inicializar_base_datos(config):
                 ) ENGINE=InnoDB
             """)
 
-            # Migra instalaciones existentes sin eliminar vehículos ni movimientos.
+            # Migraciones no destructivas
             if not _columna_existe(cur, "vehiculo", "marca"):
                 cur.execute("ALTER TABLE vehiculo ADD COLUMN marca VARCHAR(80) NULL")
             if not _columna_existe(cur, "vehiculo", "color"):
                 cur.execute("ALTER TABLE vehiculo ADD COLUMN color VARCHAR(50) NULL")
+            if not _columna_existe(cur, "vehiculo", "propietario"):
+                cur.execute("ALTER TABLE vehiculo ADD COLUMN propietario VARCHAR(120) NULL")
+
             if not _columna_existe(cur, "estancia", "ticket_codigo"):
                 cur.execute("ALTER TABLE estancia ADD COLUMN ticket_codigo VARCHAR(32) NULL UNIQUE")
-
             if not _columna_existe(cur, "estancia", "operador_entrada_id"):
                 cur.execute("ALTER TABLE estancia ADD COLUMN operador_entrada_id INT NULL")
             if not _columna_existe(cur, "estancia", "operador_salida_id"):
                 cur.execute("ALTER TABLE estancia ADD COLUMN operador_salida_id INT NULL")
 
-            # Columnas Iteración 2
             if not _columna_existe(cur, "operador", "correo"):
                 cur.execute("ALTER TABLE operador ADD COLUMN correo VARCHAR(120) NULL AFTER usuario")
             if not _indice_existe(cur, "operador", "uq_operador_correo"):
@@ -139,7 +179,7 @@ def inicializar_base_datos(config):
             if not _columna_existe(cur, "celda", "zona"):
                 cur.execute("ALTER TABLE celda ADD COLUMN zona VARCHAR(60) NOT NULL DEFAULT 'General' AFTER tipo")
 
-            # Registra las llaves foráneas de operadores solo si aún no existen.
+            # Llaves foráneas de estancia
             cur.execute("""
                 SELECT COUNT(*) AS total FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
                 WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='estancia'
@@ -161,6 +201,7 @@ def inicializar_base_datos(config):
                     FOREIGN KEY (operador_salida_id) REFERENCES operador(id)
                 """)
 
+            # Administrador inicial
             cur.execute("SELECT id, correo FROM operador WHERE usuario=%s", ("admin",))
             admin_row = cur.fetchone()
             if not admin_row:
@@ -169,19 +210,13 @@ def inicializar_base_datos(config):
                     VALUES(%s,%s,%s,%s,'ADMIN')
                 """, ("Administrador", "admin", "admin@autoscolombia.com", generate_password_hash("Admin123*")))
             elif not admin_row.get("correo"):
-                cur.execute("""
-                    UPDATE operador SET correo=%s WHERE id=%s
-                """, ("admin@autoscolombia.com", admin_row["id"]))
+                cur.execute("UPDATE operador SET correo=%s WHERE id=%s", ("admin@autoscolombia.com", admin_row["id"]))
 
-            # Si había estancias antiguas, se asigna el operador administrador como responsable histórico.
             cur.execute("SELECT id FROM operador WHERE usuario=%s", ("admin",))
             admin_id = cur.fetchone()["id"]
-            cur.execute("""
-                UPDATE estancia SET operador_entrada_id=%s
-                WHERE operador_entrada_id IS NULL
-            """, (admin_id,))
+            cur.execute("UPDATE estancia SET operador_entrada_id=%s WHERE operador_entrada_id IS NULL", (admin_id,))
 
-            # Conserva la distribución original: 10 celdas de moto y 70 de carro.
+            # 80 celdas iniciales
             for i in range(1, 11):
                 cur.execute("""
                     INSERT IGNORE INTO celda(codigo,numero,tipo,zona,estado)
@@ -199,7 +234,6 @@ def inicializar_base_datos(config):
             cur.execute("UPDATE celda SET zona='Zona B' WHERE tipo='CARRO' AND numero BETWEEN 21 AND 40 AND zona='General'")
             cur.execute("UPDATE celda SET zona='Zona C' WHERE tipo='CARRO' AND numero>=41 AND zona='General'")
 
-            # Recalcula estados desde las estancias activas, no elimina movimientos.
             cur.execute("""
                 UPDATE celda c
                 LEFT JOIN estancia e ON e.celda_activa_id=c.id

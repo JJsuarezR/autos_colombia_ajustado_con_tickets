@@ -1,13 +1,11 @@
-"""Reglas de negocio para la gestión y consulta de celdas (Iteración 2)."""
+"""Reglas de negocio para la gestión de celdas y disponibilidad (Iteración 2)."""
 
-import math
 import re
-from datetime import datetime
 from persistencia.conexion import conectar
 from persistencia.celda_repository import CeldaRepository
 from persistencia.auditoria_repository import AuditoriaRepository
 
-RE_CODIGO_CELDA = re.compile(r"^[A-Z0-9-]{2,10}$")
+RE_CODIGO_CELDA = re.compile(r"^[A-Z]{1,3}-?\d{1,4}$")
 
 
 class ServicioCeldas:
@@ -16,14 +14,6 @@ class ServicioCeldas:
         self.celdas = CeldaRepository()
         self.auditoria = AuditoriaRepository()
 
-    @staticmethod
-    def calcular_permanencia(fecha_entrada):
-        if not fecha_entrada:
-            return "—"
-        ahora = datetime.now().replace(microsecond=0)
-        minutos = max(0, math.ceil((ahora - fecha_entrada).total_seconds() / 60))
-        return f"{minutos // 60} h {minutos % 60:02d} min"
-
     def consultar_celdas(self, codigo=None, tipo=None, zona=None, estado=None):
         conn = conectar(self.config)
         try:
@@ -31,67 +21,23 @@ class ServicioCeldas:
                 resumen = self.celdas.resumen(cur)
                 lista = self.celdas.listar(cur, codigo=codigo, tipo=tipo, zona=zona, estado=estado)
                 zonas = self.celdas.listar_zonas(cur)
-                for c in lista:
-                    c["permanencia_actual"] = (
-                        self.calcular_permanencia(c["fecha_entrada"])
-                        if c["estado"] == "Ocupada" else "—"
-                    )
+                for item in lista:
+                    mins = item.get("minutos_transcurridos")
+                    if mins is not None and mins >= 0:
+                        item["permanencia_actual"] = f"{mins // 60} h {mins % 60:02d} min"
+                    else:
+                        item["permanencia_actual"] = None
                 return resumen, lista, zonas
         finally:
             conn.close()
 
-    def modificar_celda(self, celda_id, tipo, zona, operador_id):
-        tipo = (tipo or "").strip().upper()
-        zona = (zona or "").strip()
-
-        if tipo not in ("CARRO", "MOTO"):
-            raise ValueError("El tipo de celda debe ser CARRO o MOTO.")
-        if not zona or len(zona) > 60:
-            raise ValueError("Ingrese una zona o ubicación válida (1 a 60 caracteres).")
-
-        conn = conectar(self.config)
-        try:
-            with conn.cursor() as cur:
-                conn.begin()
-                celda = self.celdas.buscar_por_id(cur, celda_id, bloquear=True)
-                if not celda:
-                    raise ValueError("La celda indicada no existe.")
-                if celda["estado"] == "Ocupada":
-                    raise ValueError(
-                        f"No se puede modificar la celda {celda['codigo']} mientras se encuentre Ocupada."
-                    )
-
-                if celda["tipo"] != tipo:
-                    duplicada = self.celdas.existe_codigo_o_numero(
-                        cur, celda["codigo"], tipo, celda["numero"], excluir_id=celda_id
-                    )
-                    if duplicada:
-                        raise ValueError(
-                            f"Ya existe una celda número {celda['numero']} para tipo {tipo}."
-                        )
-
-                filas = self.celdas.actualizar(cur, celda_id, tipo, zona)
-                if filas == 0:
-                    raise ValueError("No fue posible actualizar la celda; verifique su estado.")
-
-                self.auditoria.registrar(
-                    cur, operador_id, "CELDA", celda_id, "MODIFICAR",
-                    f"Modificó celda {celda['codigo']}: tipo={tipo}, zona='{zona}'."
-                )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-
-    def crear_celda(self, codigo, numero, tipo, zona, operador_id):
-        codigo = re.sub(r"\s+", "", (codigo or "")).upper()
+    def crear_celda(self, codigo, numero, tipo, zona, admin_id):
+        codigo = (codigo or "").strip().upper()
         tipo = (tipo or "").strip().upper()
         zona = (zona or "").strip()
 
         if not RE_CODIGO_CELDA.fullmatch(codigo):
-            raise ValueError("Código de celda inválido (ej: C-71 o M-11).")
+            raise ValueError("Código inválido. Use un formato como C-71 o M-11.")
         try:
             numero_int = int(numero)
             if numero_int <= 0:
@@ -100,26 +46,72 @@ class ServicioCeldas:
             raise ValueError("El número de celda debe ser un entero positivo.")
 
         if tipo not in ("CARRO", "MOTO"):
-            raise ValueError("El tipo debe ser CARRO o MOTO.")
-        if not zona or len(zona) > 60:
-            raise ValueError("Ingrese una zona o ubicación válida (1 a 60 caracteres).")
+            raise ValueError("Seleccione si la celda es para CARRO o MOTO.")
+        if not zona or len(zona) < 2:
+            raise ValueError("Indique la zona o ubicación de la celda (ej. Zona A).")
 
         conn = conectar(self.config)
         try:
             with conn.cursor() as cur:
                 conn.begin()
-                duplicada = self.celdas.existe_codigo_o_numero(cur, codigo, tipo, numero_int)
-                if duplicada:
-                    raise ValueError(
-                        f"Ya existe una celda con código '{duplicada['codigo']}' o número {numero_int} para {tipo}."
-                    )
-                nueva_id = self.celdas.crear(cur, codigo, numero_int, tipo, zona)
+                dup = self.celdas.existe_codigo_o_numero(cur, codigo, tipo, numero_int)
+                if dup:
+                    raise ValueError(f"Ya existe una celda con código '{dup['codigo']}' o número {numero_int} para {tipo.lower()}.")
+
+                celda_id = self.celdas.crear(cur, codigo, numero_int, tipo, zona)
                 self.auditoria.registrar(
-                    cur, operador_id, "CELDA", nueva_id, "CREAR",
-                    f"Creó celda {codigo} (#{numero_int}, {tipo}, zona='{zona}')."
+                    cur, admin_id, "CELDA", celda_id, "CREAR",
+                    f"Creó celda {codigo} (N° {numero_int}, {tipo}, {zona})."
                 )
             conn.commit()
-            return nueva_id
+            return celda_id
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def modificar_celda(self, celda_id, tipo, zona, estado, admin_id):
+        """Permite al Administrador editar tipo, zona y estado (Disponible/Ocupada) de una celda."""
+        tipo = (tipo or "").strip().upper()
+        zona = (zona or "").strip()
+        estado = (estado or "").strip().capitalize()
+
+        if tipo not in ("CARRO", "MOTO"):
+            raise ValueError("El tipo de vehículo de la celda debe ser CARRO o MOTO.")
+        if not zona or len(zona) < 2:
+            raise ValueError("Indique una zona o ubicación válida para la celda.")
+        if estado not in ("Disponible", "Ocupada"):
+            raise ValueError("El estado de la celda debe ser Disponible u Ocupada.")
+
+        conn = conectar(self.config)
+        try:
+            with conn.cursor() as cur:
+                conn.begin()
+                actual = self.celdas.buscar_por_id(cur, celda_id, bloquear=True)
+                if not actual:
+                    raise ValueError("La celda seleccionada no existe.")
+
+                # Verificar si tiene una estancia activa asociada
+                cur.execute("SELECT id FROM estancia WHERE celda_activa_id=%s", (celda_id,))
+                estancia_activa = cur.fetchone()
+
+                if estancia_activa:
+                    if actual["tipo"] != tipo:
+                        raise ValueError(
+                            f"La celda {actual['codigo']} tiene un vehículo activo dentro; no puede cambiar su tipo de vehículo hasta registrar la salida."
+                        )
+                    if estado == "Disponible":
+                        raise ValueError(
+                            f"La celda {actual['codigo']} tiene un vehículo con estancia activa dentro. Para liberarla registre la salida del vehículo en el módulo 'Salida'."
+                        )
+
+                self.celdas.actualizar(cur, celda_id, tipo, zona, estado)
+                self.auditoria.registrar(
+                    cur, admin_id, "CELDA", celda_id, "MODIFICAR",
+                    f"Modificó celda {actual['codigo']}: tipo {actual['tipo']}->{tipo}, zona '{actual['zona']}'->'{zona}', estado {actual['estado']}->{estado}."
+                )
+            conn.commit()
         except Exception:
             conn.rollback()
             raise

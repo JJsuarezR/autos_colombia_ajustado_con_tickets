@@ -1,10 +1,11 @@
 {% extends "base.html" %}{% block title %}Panel principal{% endblock %}
-{% block content %}<h2>Panel principal</h2><p class="muted">Resumen actualizado de la ocupación del parqueadero.</p>
+{% block content %}<h2>Panel principal</h2><p class="muted">Resumen actualizado de la ocupación del parqueadero y mensualidades.</p>
 <div class="grid">
 <div class="card stat"><span>Total de celdas</span><strong>{{ resumen.total or 0 }}</strong></div>
-<div class="card stat"><span>Celdas disponibles</span><strong>{{ resumen.disponibles or 0 }}</strong></div>
-<div class="card stat"><span>Celdas ocupadas</span><strong>{{ resumen.ocupadas or 0 }}</strong></div>
+<div class="card stat"><span>Celdas disponibles</span><strong style="color:#126338">{{ resumen.disponibles or 0 }}</strong></div>
+<div class="card stat"><span>Celdas ocupadas</span><strong style="color:#a4261c">{{ resumen.ocupadas or 0 }}</strong></div>
 <div class="card stat"><span>Vehículos dentro</span><strong>{{ activos|length }}</strong></div>
+<div class="card stat"><span>Suscripciones por vencer (5d)</span><strong>{{ por_vencer or 0 }}</strong></div>
 </div>
 <section class="card"><h3>Vehículos dentro del parqueadero</h3>
 {% if activos %}<div class="table-wrap"><table><tr><th>Placa</th><th>Tipo</th><th>Marca</th><th>Color</th><th>Celda</th><th>Entrada</th><th>Ticket</th><th>Operador de entrada</th></tr>

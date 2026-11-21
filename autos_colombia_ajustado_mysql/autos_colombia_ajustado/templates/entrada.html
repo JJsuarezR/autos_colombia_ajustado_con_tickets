@@ -1,7 +1,35 @@
 {% extends "base.html" %}{% block title %}Registro de entrada{% endblock %}
 {% block content %}
-<h2>Control de Ingreso al Parqueadero</h2>
-<p class="muted">Para dar ingreso a un vehículo, este debe existir previamente en el sistema. Si es su primera vez, regístrelo en el paso 1.</p>
+<h2>Control de Ingreso y Catálogo de Vehículos</h2>
+<p class="muted">Para ingresar al parqueadero, el vehículo debe estar registrado y contar con una <b>mensualidad vigente</b> ($250.000 Carro · $100.000 Moto).</p>
+
+{% if vehiculo_editar %}
+<section class="card" style="border-left:4px solid #f59e0b">
+  <h3>Editar información del vehículo #{{ vehiculo_editar.id }} ({{ vehiculo_editar.placa }})</h3>
+  <form method="post" action="{{ url_for('editar_vehiculo', vehiculo_id=vehiculo_editar.id) }}" class="form">
+    <label>Placa
+      <input name="placa" maxlength="10" value="{{ vehiculo_editar.placa }}" required style="text-transform:uppercase">
+    </label>
+    <label>Tipo de vehículo
+      <select name="tipo" required>
+        <option value="CARRO" {% if vehiculo_editar.tipo=='CARRO' %}selected{% endif %}>Carro ($250.000/mes)</option>
+        <option value="MOTO" {% if vehiculo_editar.tipo=='MOTO' %}selected{% endif %}>Moto ($100.000/mes)</option>
+      </select>
+    </label>
+    <label>Marca
+      <input name="marca" maxlength="80" value="{{ vehiculo_editar.marca or '' }}" required>
+    </label>
+    <label>Color
+      <input name="color" maxlength="50" value="{{ vehiculo_editar.color or '' }}" required>
+    </label>
+    <label>Propietario
+      <input name="propietario" maxlength="120" value="{{ vehiculo_editar.suscriptor_nombre or vehiculo_editar.propietario or '' }}" placeholder="Nombre del propietario">
+    </label>
+    <button type="submit">Guardar cambios</button>
+    <a class="btn secondary" href="{{ url_for('entrada') }}">Cancelar</a>
+  </form>
+</section>
+{% endif %}
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem">
   <section class="card" style="border-top:4px solid #1457a6">
@@ -15,8 +43,8 @@
       <label style="display:grid;gap:.3rem;font-size:.9rem">Tipo de vehículo
         <select name="tipo" required>
           <option value="">Seleccione tipo</option>
-          <option value="CARRO">Carro</option>
-          <option value="MOTO">Moto</option>
+          <option value="CARRO">Carro ($250.000/mes)</option>
+          <option value="MOTO">Moto ($100.000/mes)</option>
         </select>
       </label>
       <label style="display:grid;gap:.3rem;font-size:.9rem">Marca
@@ -25,52 +53,84 @@
       <label style="display:grid;gap:.3rem;font-size:.9rem">Color
         <input name="color" maxlength="50" placeholder="Ej. Gris, Negro" required>
       </label>
+      <label style="display:grid;gap:.3rem;font-size:.9rem">Propietario (opcional)
+        <input name="propietario" maxlength="120" placeholder="Ej. María Torres">
+      </label>
       <button type="submit">Guardar vehículo</button>
     </form>
   </section>
 
   <section class="card" style="border-top:4px solid #15803d">
-    <h3>2. Registrar entrada (vehículo existente)</h3>
-    <p class="muted">Asigna automáticamente la primera celda disponible y genera el ticket de ingreso.</p>
+    <h3>2. Registrar entrada (vehículo con mensualidad activa)</h3>
+    <p class="muted">Valida vigencia de mensualidad, asigna la primera celda disponible y genera el ticket de ingreso.</p>
     <form method="post" style="display:grid;gap:.75rem">
       <input type="hidden" name="accion" value="entrada">
       <label style="display:grid;gap:.3rem;font-size:.9rem">Placa del vehículo registrado
         <input name="placa" list="placas-registradas" maxlength="10" value="{{ placa_preseleccionada }}" placeholder="Digite o seleccione la placa" required style="text-transform:uppercase">
         <datalist id="placas-registradas">
-          {% for v in vehiculos %}
+          {% for v in vehiculos_todos %}
             <option value="{{ v.placa }}">{{ v.placa }} · {{ v.tipo }} ({{ v.marca or 'Sin marca' }} {{ v.color or '' }})</option>
           {% endfor %}
         </datalist>
       </label>
       <button type="submit" class="success">Registrar entrada y generar ticket</button>
     </form>
-    <p class="muted" style="margin-top:1rem">Si digita una placa que no existe, el sistema le indicará registrarla primero en el panel izquierdo.</p>
+    <p class="muted" style="margin-top:1rem">¿El vehículo aún no tiene mensualidad o está vencida? <a href="{{ url_for('pagos', tab='registrar', placa=placa_preseleccionada) }}">Ir a Gestión de Pagos</a>.</p>
   </section>
 </div>
 
 <section class="card">
-  <h3>Vehículos registrados en el catálogo ({{ vehiculos|length }})</h3>
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:.75rem">
+    <h3 style="margin:0">Vehículos registrados en el catálogo ({{ vehiculos|length }})</h3>
+    <form method="get" class="filters" style="margin:0">
+      <label style="font-size:.85rem">Buscar por placa
+        <input name="buscar_placa" maxlength="10" value="{{ buscar_placa }}" placeholder="Ej. ABC123" style="text-transform:uppercase">
+      </label>
+      <button type="submit">Buscar</button>
+      {% if buscar_placa %}
+        <a class="btn secondary" href="{{ url_for('entrada') }}">Limpiar</a>
+      {% endif %}
+    </form>
+  </div>
+
   {% if vehiculos %}
   <div class="table-wrap">
     <table>
-      <tr><th>Placa</th><th>Tipo</th><th>Marca</th><th>Color</th><th>Acción rápida</th></tr>
+      <tr><th>Placa</th><th>Tipo</th><th>Marca</th><th>Color</th><th>Propietario</th><th>Mensualidad</th><th>Acciones</th></tr>
       {% for v in vehiculos %}
       <tr>
         <td><b>{{ v.placa }}</b></td>
         <td>{{ v.tipo }}</td>
         <td>{{ v.marca or '—' }}</td>
         <td>{{ v.color or '—' }}</td>
+        <td>{{ v.propietario or '—' }}</td>
         <td>
-          <form method="post" style="margin:0">
-            <input type="hidden" name="accion" value="entrada">
-            <input type="hidden" name="placa" value="{{ v.placa }}">
-            <button class="btn-sm success" type="submit">Dar entrada</button>
-          </form>
+          {% if v.fecha_vencimiento and v.fecha_vencimiento >= hoy %}
+            <span class="badge badge-ok">Activa hasta {{ v.fecha_vencimiento }}</span>
+          {% elif v.fecha_vencimiento %}
+            <span class="badge badge-off">Vencida ({{ v.fecha_vencimiento }})</span>
+          {% else %}
+            <span class="badge badge-warn">Sin mensualidad</span>
+          {% endif %}
+        </td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <a class="btn btn-sm secondary" href="{{ url_for('entrada', editar_vehiculo=v.id, buscar_placa=buscar_placa) }}">Editar</a>
+          {% if v.fecha_vencimiento and v.fecha_vencimiento >= hoy %}
+            <form method="post" style="margin:0">
+              <input type="hidden" name="accion" value="entrada">
+              <input type="hidden" name="placa" value="{{ v.placa }}">
+              <button class="btn-sm success" type="submit">Dar entrada</button>
+            </form>
+          {% else %}
+            <a class="btn btn-sm" href="{{ url_for('pagos', tab='registrar', placa=v.placa) }}">Pagar mensualidad</a>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
     </table>
   </div>
+  {% elif buscar_placa %}
+  <p class="muted">No se encontraron vehículos registrados con la placa <b>{{ buscar_placa }}</b>.</p>
   {% else %}
   <p class="muted">Aún no hay vehículos registrados. Agregue el primero en la sección "1. Registrar vehículo nuevo".</p>
   {% endif %}

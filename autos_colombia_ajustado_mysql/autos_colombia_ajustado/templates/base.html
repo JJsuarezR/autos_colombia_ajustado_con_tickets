@@ -6,24 +6,25 @@
 header{background:#123e70;color:white;padding:1rem 4%;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
 header h1{font-size:1.2rem;margin:0}nav{display:flex;gap:.5rem;flex-wrap:wrap}nav a{color:white;text-decoration:none;padding:.5rem .7rem;border-radius:6px}nav a:hover{background:#285887}
 main{max-width:1200px;margin:1.5rem auto;padding:0 1rem;min-height:75vh}.card{background:white;border:1px solid #dce3eb;border-radius:12px;padding:1rem;margin-bottom:1rem;box-shadow:0 3px 12px #18324b08}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1rem}.stat strong{display:block;font-size:2rem;margin-top:.35rem}.stat span{color:#64748b}.ok{background:#e1f6e9;color:#126338}.error{background:#fde9e7;color:#a4261c}.msg{padding:.75rem 1rem;border-radius:8px;margin-bottom:1rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1rem}.stat strong{display:block;font-size:1.85rem;margin-top:.35rem}.stat span{color:#64748b}.ok{background:#e1f6e9;color:#126338}.error{background:#fde9e7;color:#a4261c}.msg{padding:.75rem 1rem;border-radius:8px;margin-bottom:1rem}
 input,select,button{font:inherit;padding:.6rem .75rem;border:1px solid #cbd5e1;border-radius:7px}button,.btn{background:#1457a6;color:white;border:0;cursor:pointer;text-decoration:none;padding:.6rem .9rem;border-radius:7px;display:inline-block;font-size:.92rem}
 button.danger,.btn.danger{background:#b42318}button.secondary,.btn.secondary{background:#64748b}button.success,.btn.success{background:#15803d}.btn-sm{padding:.35rem .65rem;font-size:.82rem}
 .form{display:flex;gap:.7rem;flex-wrap:wrap;align-items:end}.form label{display:grid;gap:.3rem;font-size:.9rem}.form input,.form select{min-width:150px}
 table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{text-align:left;padding:.65rem;border-bottom:1px solid #e5eaf0;white-space:nowrap}.table-wrap{overflow-x:auto}
 .cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:.4rem}.cell{padding:.5rem;text-align:center;border-radius:7px;font-size:.75rem}.Disponible{background:#d8f3e2}.Ocupada{background:#ffdedb}
-.badge{padding:.2rem .55rem;border-radius:999px;font-size:.78rem;font-weight:600}.badge-ok{background:#d8f3e2;color:#126338}.badge-off{background:#ffdedb;color:#a4261c}.badge-info{background:#e0ecff;color:#123e70}
-.tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}.tab{padding:.45rem .85rem;border-radius:7px;background:#e2e8f0;color:#1d2733;text-decoration:none;font-size:.88rem}.tab.active{background:#123e70;color:#fff}
+.badge{padding:.2rem .55rem;border-radius:999px;font-size:.78rem;font-weight:600}.badge-ok{background:#d8f3e2;color:#126338}.badge-off{background:#ffdedb;color:#a4261c}.badge-info{background:#e0ecff;color:#123e70}.badge-warn{background:#fef3c7;color:#92400e}
+.tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}.tab{padding:.5rem .9rem;border-radius:7px;background:#e2e8f0;color:#1d2733;text-decoration:none;font-size:.9rem;font-weight:500}.tab.active{background:#123e70;color:#fff}
 h2,h3{margin-top:0}.muted{color:#64748b}.filters{display:flex;gap:.7rem;flex-wrap:wrap;align-items:end}.filters label{display:grid;gap:.3rem;font-size:.9rem}
 .login{max-width:420px;margin:3rem auto}.login form{display:grid;gap:.8rem}.login label{display:grid;gap:.3rem}
 footer{text-align:center;color:#7b8794;padding:1rem;font-size:.8rem}
 @media(max-width:600px){header{align-items:flex-start}nav{width:100%}nav a{font-size:.85rem}}
 </style></head><body>
-<header><div><h1>🅿 Autos Colombia</h1><small>Control de parqueadero · Operaciones y administración</small></div>
+<header><div><h1>🅿 Autos Colombia</h1><small>Control de parqueadero · Mensualidades, operaciones y administración</small></div>
 {% if session.get('operador_id') %}<nav>
 <a href="{{ url_for('panel') }}">Panel principal</a>
 <a href="{{ url_for('entrada') }}">Entrada</a>
 <a href="{{ url_for('salida') }}">Salida</a>
+<a href="{{ url_for('pagos') }}">Pagos</a>
 <a href="{{ url_for('celdas') }}">Celdas</a>
 <a href="{{ url_for('historial') }}">Historial</a>
 {% if session.get('operador_rol')=='ADMIN' %}<a href="{{ url_for('operadores') }}">Usuarios</a>{% endif %}
